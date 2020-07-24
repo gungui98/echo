@@ -37,7 +37,7 @@ class DatasetCAMUS(Dataset):
             input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
             self.items.append((target_path, condition_path, input_path))
 
-        random.Random(SEED).shuffle(self.items)
+        random.Random().shuffle(self.items)  # one seed for all files?
         num = len(self.items)
 
         all_labels = {0, 1, 2, 3}
@@ -97,12 +97,13 @@ class DatasetCAMUS(Dataset):
     def __getitem__(self, index):
         target_path, condition_path, input_path = self.items[index]
 
-        target = self.read_mhd(img_path=target_path, is_gt=True)  # .astype(float)
+        target = self.read_mhd(img_path=target_path, is_gt=True)
         condition = self.read_mhd(img_path=condition_path, is_gt=True)
         input_ = self.read_mhd(img_path=input_path, is_gt=False)
 
-        weight_map_condition = self.get_weight_map(condition)  # .astype(float)
-        # weight_map_condition = transforms.ToTensor()(weight_map_condition)
+        weight_map_condition = self.get_weight_map(condition)
+
+        # to tensor without normalization
         weight_map_condition = torch.tensor(np.asarray(weight_map_condition)).float().unsqueeze(dim=0)
         input_ = torch.tensor(np.asarray(input_)).float().unsqueeze(dim=0)
         condition = torch.tensor(np.asarray(condition)).float().unsqueeze(dim=0)

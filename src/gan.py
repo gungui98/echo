@@ -6,6 +6,7 @@ from torchvision.utils import save_image
 import datetime
 import time
 import sys
+
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
 TEST_DIR = 'test_images'
@@ -13,15 +14,19 @@ MODELS_DIR = 'saved_models'
 
 
 class GAN:
-    def __init__(self, data_loader, config, use_wandb, device):
+    def __init__(self, config, use_wandb, device):
 
         # Configure data loader
         self.config = config
         self.result_name = config['NAME']
-        self.data_loader = data_loader
+
         self.use_wandb = use_wandb
         self.device = device
+        self.epochs = config['EPOCHS']
+        self.log_interval = config['LOG_INTERVAL']
         self.step = 0
+        self.patch = (1, config['PATCH_SIZE'], config['PATCH_SIZE'])
+        # self.patch = (1, 256 // 2 ** 4, 256 // 2 ** 4)
 
         # Input shape
         self.channels = config['CHANNELS']
@@ -35,14 +40,15 @@ class GAN:
         self.input_trans = config['INPUT_TRANS']
 
         # Input images and their conditioning images
-        self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
+
         self.recon_loss = config.get('RECON_LOSS', 'basic')
+        self.loss_weight_d = config["LOSS_WEIGHT_DISC"]
+        self.loss_weight_g = config["LOSS_WEIGHT_GEN"]
 
         # Calculate output shape of D (PatchGAN)
         patch_size = config['PATCH_SIZE']
         patch_per_dim = int(self.img_rows / patch_size)
         self.num_patches = (patch_per_dim, patch_per_dim, 1)
-        num_layers_D = int(np.log2(patch_size))
 
         # Number of filters in the first layer of G and D
         self.gf = config['FIRST_LAYERS_FILTERS']
@@ -52,11 +58,11 @@ class GAN:
         self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
 
-        self.generator = GeneratorUNet().to(self.device)
-        self.discriminator = Discriminator().to(self.device)
+        self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
+        self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
-        #self.generator.apply(self.weights_init_normal)
-        #self.discriminator.apply(self.weights_init_normal)
+        # self.generator.apply(self.weights_init_normal)
+        # self.discriminator.apply(self.weights_init_normal)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
                                             lr=config['LEARNING_RATE_G'],
@@ -111,46 +117,37 @@ class GAN:
                                       valid_ratio=0.02,
                                       augment=self.augmentation,
                                       subset='test')
+
         self.train_loader = torch.utils.data.DataLoader(self.train_data,
-                                                        batch_size=16, # 32
+                                                        batch_size=config['BATCH_SIZE'],  # 32 max
                                                         shuffle=True,
-                                                        num_workers=4)
+                                                        num_workers=config['NUM_WORKERS'])
         self.valid_loader = torch.utils.data.DataLoader(self.valid_data,
-                                                        batch_size=16,
+                                                        batch_size=config['BATCH_SIZE'],
                                                         shuffle=False,
-                                                        num_workers=4)
+                                                        num_workers=config['NUM_WORKERS'])
         self.test_loader = torch.utils.data.DataLoader(self.test_data,
-                                                       batch_size=8,
+                                                       batch_size=config['BATCH_SIZE'],
                                                        shuffle=False,
-                                                       num_workers=4)
+                                                       num_workers=config['NUM_WORKERS'])
 
     def train(self):
-        #start_time = datetime.datetime.now()
-        #batch_size = self.batch_size
-        #max_iter = self.max_iter
-        #val_interval = self.val_interval
-        #log_interval = self.log_interval
-        #ave_model_interval = self.save_model_interval
-        patch = (1, 256 // 2 ** 4, 256 // 2 ** 4)
 
         prev_time = time.time()
-        epochs = 100
-        for epoch in range(epochs):
+
+        for epoch in range(self.epochs):
             for i, batch in enumerate(self.train_loader):
                 target, condition, input_, weight_map_condition = batch
 
                 condition = condition.to(self.device)
                 real_echo = target.to(self.device)
-                input_ = input_.to(self.device)
-                weight_map_condition = weight_map_condition.to(self.device)
+                input_ = input_.to(self.device)  # not used
+                weight_map_condition = weight_map_condition.to(self.device)  # not used
 
-                # Adversarial ground truths
+                # Adversarial ground truths for discriminator losses
 
-                valid = torch.tensor(np.ones((condition.size(0), *patch)), dtype=torch.float32, device=self.device)
-                # valid = Variable(torch.from_numpy(np.ones((real_A.size(0), *patch)).astype(float)).to(device),
-                # requires_grad=False) fake = Variable(torch.from_numpy(np.zeros((real_A.size(0), *patch)).astype(
-                # float)).to(device), requires_grad=False)
-                fake = torch.tensor(np.zeros((condition.size(0), *patch)), dtype=torch.float32, device=self.device)
+                valid = torch.tensor(np.ones((condition.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                fake = torch.tensor(np.zeros((condition.size(0), *self.patch)), dtype=torch.float32, device=self.device)
 
                 # ------------------
                 #  Train Generators
@@ -168,7 +165,7 @@ class GAN:
                 loss_pixel = self.criterion_pixelwise(fake_echo, real_echo)
 
                 # Total loss
-                loss_G = loss_GAN + loss_pixel  # * lambda_pixel
+                loss_G = loss_GAN + self.loss_weight_g * loss_pixel  # 100
 
                 loss_G.backward()
 
@@ -200,16 +197,16 @@ class GAN:
 
                 # Determine approximate time left
                 batches_done = epoch * len(self.train_loader) + i
-                batches_left = epochs * len(self.train_loader) - batches_done
+                batches_left = self.epochs * len(self.train_loader) - batches_done
                 time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
                 prev_time = time.time()
 
-                # Print log
+                # print log
                 sys.stdout.write(
                     "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, pixel: %f, adv: %f] ETA: %s"
                     % (
                         epoch,
-                        epochs,
+                        self.epochs,
                         i,
                         len(self.train_loader),
                         loss_D.item(),
@@ -219,9 +216,11 @@ class GAN:
                         time_left,
                     )
                 )
-                # If at sample interval save image
-                if batches_done % 100 == 0:
+                # save valid images
+                if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
+
+                # log wandb
                 self.step += 1
                 if self.use_wandb:
                     import wandb
@@ -230,6 +229,7 @@ class GAN:
 
                               step=self.step)
 
+    # not used
     def weights_init_normal(m):
         classname = m.__class__.__name__
         if classname.find("Conv") != -1:
@@ -241,8 +241,6 @@ class GAN:
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
         imgs = next(iter(self.valid_loader))
-        # real_A = Variable(imgs["B"].type(Tensor))
-        # real_B = Variable(imgs["A"].type(Tensor))
         condition = imgs[0].to(self.device)
         real_echo = imgs[1].to(self.device)
         fake_echo = self.generator(condition)
