@@ -7,10 +7,11 @@ class UNetDown(nn.Module):
         super(UNetDown, self).__init__()
         layers = [nn.Conv2d(in_size, out_size, 4, 2, 1, bias=False)]
         if normalize:
-            layers.append(nn.InstanceNorm2d(out_size))
+            #layers.append(nn.InstanceNorm2d(out_size))
+            layers.append(nn.BatchNorm2d(out_size, momentum=0.8))
         layers.append(nn.LeakyReLU(0.2))
-        if dropout:
-            layers.append(nn.Dropout(dropout))
+        #if dropout:
+        #    layers.append(nn.Dropout(dropout))
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -22,11 +23,12 @@ class UNetUp(nn.Module):
         super(UNetUp, self).__init__()
         layers = [
             nn.ConvTranspose2d(in_size, out_size, 4, 2, 1, bias=False),
-            nn.InstanceNorm2d(out_size),
+            #nn.InstanceNorm2d(out_size),
+            nn.BatchNorm2d(out_size, momentum=0.8),
             nn.ReLU(inplace=True),
         ]
-        if dropout:
-            layers.append(nn.Dropout(dropout))
+        #if dropout:
+        #    layers.append(nn.Dropout(dropout))
 
         self.model = nn.Sequential(*layers)
 
@@ -44,16 +46,16 @@ class GeneratorUNet(nn.Module):
         self.down1 = UNetDown(in_channels, 64, normalize=False)
         self.down2 = UNetDown(64, 128)
         self.down3 = UNetDown(128, 256)
-        self.down4 = UNetDown(256, 512, dropout=0.5)
-        self.down5 = UNetDown(512, 512, dropout=0.5)
-        self.down6 = UNetDown(512, 512, dropout=0.5)
-        self.down7 = UNetDown(512, 512, dropout=0.5)
-        self.down8 = UNetDown(512, 512, normalize=False, dropout=0.5)
+        self.down4 = UNetDown(256, 512) #, dropout=0.5)
+        self.down5 = UNetDown(512, 512)#, dropout=0.5)
+        self.down6 = UNetDown(512, 512)#, dropout=0.5)
+        self.down7 = UNetDown(512, 512)#, dropout=0.5)
+        self.down8 = UNetDown(512, 512, normalize=False)#, dropout=0.5)
 
-        self.up1 = UNetUp(512, 512, dropout=0.5)
-        self.up2 = UNetUp(1024, 512, dropout=0.5)
-        self.up3 = UNetUp(1024, 512, dropout=0.5)
-        self.up4 = UNetUp(1024, 512, dropout=0.5)
+        self.up1 = UNetUp(512, 512)#, dropout=0.5)
+        self.up2 = UNetUp(1024, 512)#, dropout=0.5)
+        self.up3 = UNetUp(1024, 512)#, dropout=0.5)
+        self.up4 = UNetUp(1024, 512)#, dropout=0.5)
         self.up5 = UNetUp(1024, 256)
         self.up6 = UNetUp(512, 128)
         self.up7 = UNetUp(256, 64)
@@ -100,7 +102,8 @@ class Discriminator(nn.Module):
             """Returns downsampling layers of each discriminator block"""
             layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
             if normalization:
-                layers.append(nn.InstanceNorm2d(out_filters))
+                #layers.append(nn.InstanceNorm2d(out_filters))
+                layers.append(nn.BatchNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
 

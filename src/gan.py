@@ -3,6 +3,7 @@ import torch
 from models import GeneratorUNet, Discriminator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
+from torchsummary import summary
 import datetime
 import time
 import sys
@@ -60,6 +61,10 @@ class GAN:
 
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
+
+        #print(self.generator)
+        #print(self.discriminator)
+
 
         # self.generator.apply(self.weights_init_normal)
         # self.discriminator.apply(self.weights_init_normal)
@@ -203,13 +208,15 @@ class GAN:
 
                 # print log
                 sys.stdout.write(
-                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, pixel: %f, adv: %f] ETA: %s"
+                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] ETA: %s"
                     % (
                         epoch,
                         self.epochs,
                         i,
                         len(self.train_loader),
                         loss_D.item(),
+                        loss_fake * 100,
+                        loss_real * 100,
                         loss_G.item(),
                         loss_pixel.item(),
                         loss_GAN.item(),
