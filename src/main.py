@@ -11,7 +11,6 @@ from gan import GAN
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
-flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
 flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.')
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
