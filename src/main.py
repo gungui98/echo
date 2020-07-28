@@ -56,7 +56,7 @@ def main(argv):
         resume_wandb = True if FLAGS.wandb_resume_id is not None else False
         wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen')
 
-    model = GAN(config, FLAGS.use_wandb, device)
+    model = GAN(config, FLAGS.use_wandb, device, FLAGS.dataset_path)
 
 
     # load trained models if they exist

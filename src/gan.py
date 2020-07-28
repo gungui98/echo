@@ -15,7 +15,7 @@ MODELS_DIR = 'saved_models'
 
 
 class GAN:
-    def __init__(self, config, use_wandb, device):
+    def __init__(self, config, use_wandb, device, dataset_path):
 
         # Configure data loader
         self.config = config
@@ -82,7 +82,7 @@ class GAN:
         for key, value in config.items():
             if 'AUG_' in key:
                 self.augmentation[key] = value
-        self.train_data = DatasetCAMUS(dataset_path='../../datasets/CAMUS/',
+        self.train_data = DatasetCAMUS(dataset_path=dataset_path,
                                        input_name=config['INPUT_NAME'],
                                        target_name=config['TARGET_NAME'],
                                        condition_name=config['CONDITION_NAME'],
@@ -95,7 +95,7 @@ class GAN:
                                        valid_ratio=0.02,
                                        augment=self.augmentation,
                                        subset='train')
-        self.valid_data = DatasetCAMUS(dataset_path='../../datasets/CAMUS/',
+        self.valid_data = DatasetCAMUS(dataset_path=dataset_path,
                                        input_name=config['INPUT_NAME'],
                                        target_name=config['TARGET_NAME'],
                                        condition_name=config['CONDITION_NAME'],
@@ -109,7 +109,7 @@ class GAN:
                                        augment=self.augmentation,
                                        subset='valid')
 
-        self.test_data = DatasetCAMUS(dataset_path='../../datasets/CAMUS/',
+        self.test_data = DatasetCAMUS(dataset_path=dataset_path,
                                       input_name=config['INPUT_NAME'],
                                       target_name=config['TARGET_NAME'],
                                       condition_name=config['CONDITION_NAME'],
