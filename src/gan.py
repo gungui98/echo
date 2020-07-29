@@ -3,7 +3,8 @@ import torch
 from models import GeneratorUNet, Discriminator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
-from torchsummary import summary
+
+# from torchsummary import summary
 import datetime
 import time
 import sys
@@ -62,9 +63,8 @@ class GAN:
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
-        #print(self.generator)
-        #print(self.discriminator)
-
+        # print(self.generator)
+        # print(self.discriminator)
 
         # self.generator.apply(self.weights_init_normal)
         # self.discriminator.apply(self.weights_init_normal)
@@ -76,8 +76,9 @@ class GAN:
                                             lr=config['LEARNING_RATE_D'], betas=(config['ADAM_B1'], 0.999))
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
-        self.criterion_pixelwise = torch.nn.L1Loss().to(self.device)  # MAE
-        # criterion_pixelwise = torch.nn.L1Loss(reduction='none') # + weight + mean
+        #self.criterion_pixelwise = torch.nn.L1Loss().to(self.device)  # MAE
+        self.criterion_pixelwise = torch.nn.L1Loss(reduction='none').to(self.device)  # + weight + mean
+
         self.augmentation = dict()
         for key, value in config.items():
             if 'AUG_' in key:
@@ -164,11 +165,10 @@ class GAN:
                 fake_echo = self.generator(condition)
                 pred_fake = self.discriminator(fake_echo, condition)
                 loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
-
                 # Pixel-wise loss
-                # loss_pixel = torch.mean(criterion_pixelwise(fake_echo, real_echo) * weight_map_condition)
-                loss_pixel = self.criterion_pixelwise(fake_echo, real_echo)
 
+                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, real_echo) * weight_map_condition)
+                #loss_pixel = self.criterion_pixelwise(fake_echo, real_echo)
                 # Total loss
                 loss_G = loss_GAN + self.loss_weight_g * loss_pixel  # 100
 
@@ -215,8 +215,8 @@ class GAN:
                         i,
                         len(self.train_loader),
                         loss_D.item(),
-                        loss_fake * 100,
-                        loss_real * 100,
+                        loss_fake.item(),
+                        loss_real.item(),
                         loss_G.item(),
                         loss_pixel.item(),
                         loss_GAN.item(),
@@ -253,3 +253,7 @@ class GAN:
         fake_echo = self.generator(condition)
         img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
         save_image(img_sample, "images/%s.png" % (batches_done), nrow=4, normalize=True)
+
+        if self.use_wandb:
+            import wandb
+            wandb.log({'val_image': img_sample.cpu()}, step=self.step)
