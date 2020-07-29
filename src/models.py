@@ -5,7 +5,7 @@ import torch
 class UNetDown(nn.Module):
     def __init__(self, in_size, out_size, normalize=True, dropout=0.0):
         super(UNetDown, self).__init__()
-        layers = [nn.Conv2d(in_size, out_size, 4, 2, 1, bias=False)]
+        layers = [nn.Conv2d(in_size, out_size, 4, 2, 1, bias=True)]
         if normalize:
             #layers.append(nn.InstanceNorm2d(out_size))
             layers.append(nn.BatchNorm2d(out_size, momentum=0.8))
@@ -22,7 +22,8 @@ class UNetUp(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
         layers = [
-            nn.ConvTranspose2d(in_size, out_size, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(in_size, out_size, 4, 2, 1, bias=True),
+            nn.Conv2d(out_size, out_size, 3, 1, 1),
             #nn.InstanceNorm2d(out_size),
             nn.BatchNorm2d(out_size, momentum=0.8),
             nn.ReLU(inplace=True),
@@ -50,20 +51,22 @@ class GeneratorUNet(nn.Module):
         self.down5 = UNetDown(512, 512)#, dropout=0.5)
         self.down6 = UNetDown(512, 512)#, dropout=0.5)
         self.down7 = UNetDown(512, 512)#, dropout=0.5)
-        self.down8 = UNetDown(512, 512, normalize=False)#, dropout=0.5)
+        #self.down8 = UNetDown(512, 512)#, dropout=0.5)
 
-        self.up1 = UNetUp(512, 512)#, dropout=0.5)
-        self.up2 = UNetUp(1024, 512)#, dropout=0.5)
+        #self.up1 = UNetUp(512, 512)#, dropout=0.5)
+        self.up2 = UNetUp(512, 512)#, dropout=0.5)
         self.up3 = UNetUp(1024, 512)#, dropout=0.5)
         self.up4 = UNetUp(1024, 512)#, dropout=0.5)
         self.up5 = UNetUp(1024, 256)
         self.up6 = UNetUp(512, 128)
         self.up7 = UNetUp(256, 64)
 
+
         self.final = nn.Sequential(
-            nn.Upsample(scale_factor=2),
-            nn.ZeroPad2d((1, 0, 1, 0)),
-            nn.Conv2d(128, out_channels, 4, padding=1),
+            nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
+            #nn.Upsample(scale_factor=2),
+            #nn.ZeroPad2d((1, 0, 1, 0)),
+            nn.Conv2d(out_channels, out_channels, 3, 1, 1),
             #nn.Tanh(),
             nn.Sigmoid(),
         )
@@ -77,9 +80,9 @@ class GeneratorUNet(nn.Module):
         d5 = self.down5(d4)
         d6 = self.down6(d5)
         d7 = self.down7(d6)
-        d8 = self.down8(d7)
-        u1 = self.up1(d8, d7)
-        u2 = self.up2(u1, d6)
+        #d8 = self.down8(d7)
+        #u1 = self.up1(d8, d7)
+        u2 = self.up2(d7, d6)
         u3 = self.up3(u2, d5)
         u4 = self.up4(u3, d4)
         u5 = self.up5(u4, d3)
