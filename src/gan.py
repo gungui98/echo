@@ -42,6 +42,7 @@ class GAN:
 
         # Input images and their conditioning images
 
+        self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
         self.recon_loss = config.get('RECON_LOSS', 'basic')
         self.loss_weight_d = config["LOSS_WEIGHT_DISC"]
         self.loss_weight_g = config["LOSS_WEIGHT_GEN"]
@@ -78,10 +79,12 @@ class GAN:
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
         self.criterion_pixelwise = torch.nn.L1Loss().to(self.device)  # MAE
         # criterion_pixelwise = torch.nn.L1Loss(reduction='none') # + weight + mean
+
         self.augmentation = dict()
         for key, value in config.items():
             if 'AUG_' in key:
                 self.augmentation[key] = value
+
         self.train_data = DatasetCAMUS(dataset_path=dataset_path,
                                        input_name=config['INPUT_NAME'],
                                        target_name=config['TARGET_NAME'],
@@ -136,23 +139,62 @@ class GAN:
                                                        shuffle=False,
                                                        num_workers=config['NUM_WORKERS'])
 
+        # Training hyper-parameters
+        self.batch_size = config['BATCH_SIZE']
+        # self.max_iter = config['MAX_ITER']
+        self.val_interval = config['VAL_INTERVAL']
+        self.log_interval = config['LOG_INTERVAL']
+        self.save_model_interval = config['SAVE_MODEL_INTERVAL']
+        self.lr_G = config['LEARNING_RATE_G']
+        self.lr_D = config['LEARNING_RATE_D']
+
     def train(self):
 
         prev_time = time.time()
+        batch_size = self.batch_size
+        # max_iter = self.max_iter
+        val_interval = self.val_interval
+        log_interval = self.log_interval
+        save_model_interval = self.save_model_interval
+
+        # Adversarial ground truths for discriminator losses
+
+        # valid = torch.tensor(np.ones((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
+        # fake = torch.tensor(np.zeros((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
 
         for epoch in range(self.epochs):
             for i, batch in enumerate(self.train_loader):
-                target, condition, input_, weight_map_condition = batch
+                target, target_gt, inputs, weight_map = batch
 
-                condition = condition.to(self.device)
-                real_echo = target.to(self.device)
-                input_ = input_.to(self.device)  # not used
-                weight_map_condition = weight_map_condition.to(self.device)  # not used
+                target_gt = target_gt.to(self.device)
+                target = target.to(self.device)
+                inputs = inputs.to(self.device)  # not used
+                weight_map = weight_map.to(self.device)  # not used
 
-                # Adversarial ground truths for discriminator losses
+                valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                fake = torch.tensor(np.zeros((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
 
-                valid = torch.tensor(np.ones((condition.size(0), *self.patch)), dtype=torch.float32, device=self.device)
-                fake = torch.tensor(np.zeros((condition.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                # ---------------------
+                #  Train Discriminator
+                # ---------------------
+
+                self.optimizer_D.zero_grad()
+                fake_echo = self.generator(target_gt)
+
+                # if self.conditional_d:
+                # Real loss
+                pred_real = self.discriminator(target, target_gt)
+                loss_real = self.criterion_GAN(pred_real, valid)
+
+                # Fake loss
+                pred_fake = self.discriminator(fake_echo.detach(), target_gt)
+                loss_fake = self.criterion_GAN(pred_fake, fake)
+
+                # Total loss
+                loss_D = 0.5 * (loss_real + loss_fake)
+
+                loss_D.backward()
+                self.optimizer_D.step()
 
                 # ------------------
                 #  Train Generators
@@ -161,40 +203,21 @@ class GAN:
                 self.optimizer_G.zero_grad()
 
                 # GAN loss
-                fake_echo = self.generator(condition)
-                pred_fake = self.discriminator(fake_echo, condition)
+                fake_echo = self.generator(inputs)
+                pred_fake = self.discriminator(fake_echo, target_gt)
                 loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
 
                 # Pixel-wise loss
-                # loss_pixel = torch.mean(criterion_pixelwise(fake_echo, real_echo) * weight_map_condition)
-                loss_pixel = self.criterion_pixelwise(fake_echo, real_echo)
+                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target) * weight_map)
+                # loss_pixel = self.criterion_pixelwise(fake_echo, target)
 
                 # Total loss
-                loss_G = loss_GAN + self.loss_weight_g * loss_pixel  # 100
+                loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 100
+                # loss_G = loss_GAN + loss_pixel
 
                 loss_G.backward()
 
                 self.optimizer_G.step()
-
-                # ---------------------
-                #  Train Discriminator
-                # ---------------------
-
-                self.optimizer_D.zero_grad()
-
-                # Real loss
-                pred_real = self.discriminator(real_echo, condition)
-                loss_real = self.criterion_GAN(pred_real, valid)
-
-                # Fake loss
-                pred_fake = self.discriminator(fake_echo.detach(), condition)
-                loss_fake = self.criterion_GAN(pred_fake, fake)
-
-                # Total loss
-                loss_D = 0.5 * (loss_real + loss_fake)
-
-                loss_D.backward()
-                self.optimizer_D.step()
 
                 # --------------
                 #  Log Progress
