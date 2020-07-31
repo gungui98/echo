@@ -17,19 +17,6 @@ encode_qualities = {'Good': np.array([0, 0, 1]), 'Medium': np.array([0, 1, 0]), 
 encode_heart_states = {'ES': np.array([1, 0]), 'ED': np.array([0, 1])}
 encode_views = {'2CH': np.array([1, 0]), '4CH': np.array([0, 1])}
 
-import os
-import numpy as np
-import pandas as pd
-import torch
-from torch.utils.data import Dataset
-from skimage.transform import resize
-import SimpleITK as itk
-
-encode_qualities = {'Good': np.array([0, 0, 1]), 'Medium': np.array([0, 1, 0]), 'Poor': np.array([1, 0, 0])}
-encode_heart_states = {'ES': np.array([1, 0]), 'ED': np.array([0, 1])}
-encode_views = {'2CH': np.array([1, 0]), '4CH': np.array([0, 1])}
-
-
 class DatasetCAMUS(Dataset):
 
     def __init__(self,
@@ -221,7 +208,7 @@ class DatasetCAMUS(Dataset):
                     self.df_patients[(self.df_patients['fold'] == fold) & (self.df_patients['ef'] >= 55)]) / len(
                     self.df_patients) * self.num_folds
                 self.ef_fold_dist[fold]['else'] = len(self.df_patients[(self.df_patients['fold'] == fold) & (
-                            self.df_patients['ef'] > 45) & (self.df_patients['ef'] < 55)]) / len(
+                        self.df_patients['ef'] > 45) & (self.df_patients['ef'] < 55)]) / len(
                     self.df_patients) * self.num_folds
 
             for fold in range(self.num_folds):
@@ -299,10 +286,10 @@ class DatasetCAMUS(Dataset):
         mask = torch.tensor(mask).float().unsqueeze(dim=0)
         full_mask = torch.tensor(full_mask).float().unsqueeze(dim=0)
         weight_map = torch.tensor(weight_map).float().unsqueeze(dim=0)
+
         quality = torch.tensor(quality).long().unsqueeze(dim=0)
         heart_state = torch.tensor(heart_state).long().unsqueeze(dim=0)
         view = torch.tensor(view).long().unsqueeze(dim=0)
-
         return image, mask, full_mask, weight_map, quality, heart_state, view
 
 

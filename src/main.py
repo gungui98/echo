@@ -14,11 +14,13 @@ flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test
 flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.')
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
+flags.DEFINE_string('wandb_run_name', 'blah-blah', 'wandb run name')
 flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
-flags.DEFINE_float('train_ratio', 0.95,
-                   'Ratio of training data used for training and the rest used for testing. Set this value to 1.0 if '
-                   'the data in the test folder are to be used for testing.')
-flags.DEFINE_float('valid_ratio', 0.02, 'Ratio of training data used for validation')
+# in the config now
+#flags.DEFINE_float('train_ratio', 0.95,
+#                   'Ratio of training data used for training and the rest used for testing. Set this value to 1.0 if '
+#                   'the data in the test folder are to be used for testing.')
+#flags.DEFINE_float('valid_ratio', 0.02, 'Ratio of training data used for validation')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
@@ -45,23 +47,21 @@ def main(argv):
     if FLAGS.use_wandb:
         import wandb
         resume_wandb = True if FLAGS.wandb_resume_id is not None else False
-        wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen')
+        wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen', name=FLAGS.wandb_run_name)
 
     # Initialize GAN
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    if FLAGS.use_wandb:
-        import wandb
-        resume_wandb = True if FLAGS.wandb_resume_id is not None else False
-        wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen')
+
 
     model = GAN(config, FLAGS.use_wandb, device, FLAGS.dataset_path)
 
 
     # load trained models if they exist
-    # if FLAGS.ckpt_load is not None:
-    #    model.load_model(FLAGS.ckpt_load)
+    if FLAGS.ckpt_load is not None:
+        model.load(f'{FLAGS.ckpt_load}/generator_last_checkpoint.bin', model='generator')
+        model.load(f'{FLAGS.ckpt_load}/discriminator_last_checkpoint.bin', model='discriminator')
 
     if FLAGS.test:
         model.test()
