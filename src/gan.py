@@ -8,11 +8,28 @@ from torchvision.utils import save_image
 import datetime
 import time
 import sys
+import random
+import os
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
 TEST_DIR = 'test_images'
 MODELS_DIR = 'saved_models'
+
+SEED = 17
+
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
+
+seed_everything(SEED)
 
 
 class GAN:
@@ -27,6 +44,10 @@ class GAN:
         self.epochs = config['EPOCHS']
         self.log_interval = config['LOG_INTERVAL']
         self.step = 0
+        self.loaded_epoch = 0
+        self.epoch = 0
+        self.base_dir = './'
+
         self.patch = (1, config['PATCH_SIZE'], config['PATCH_SIZE'])
         # self.patch = (1, 256 // 2 ** 4, 256 // 2 ** 4)
 
@@ -36,10 +57,6 @@ class GAN:
         self.img_cols = config['IMAGE_RES'][1]
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
         assert self.img_rows == self.img_cols, 'The current code only works with same values for img_rows and img_cols'
-
-        # scaling
-        self.target_trans = config['TARGET_TRANS']
-        self.input_trans = config['INPUT_TRANS']
 
         # Input images and their conditioning images
 
@@ -64,12 +81,6 @@ class GAN:
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
-        # print(self.generator)
-        # print(self.discriminator)
-
-        # self.generator.apply(self.weights_init_normal)
-        # self.discriminator.apply(self.weights_init_normal)
-
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
                                             lr=config['LEARNING_RATE_G'],
                                             betas=(config['ADAM_B1'], 0.999))  # 0.0002
@@ -78,7 +89,7 @@ class GAN:
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
 
-        self.criterion_pixelwise = torch.nn.L1Loss().to(self.device)  # MAE
+        self.criterion_pixelwise = torch.nn.L1Loss(reduction='none').to(self.device)  # MAE
         # criterion_pixelwise = torch.nn.L1Loss(reduction='none') # + weight + mean
 
         self.augmentation = dict()
@@ -87,45 +98,30 @@ class GAN:
                 self.augmentation[key] = value
 
         self.train_data = DatasetCAMUS(dataset_path=dataset_path,
-                                       # input_name=config['INPUT_NAME'],
-                                       # target_name=config['TARGET_NAME'],
-                                       # condition_name=config['CONDITION_NAME'],
+                                       random_state=config['RANDOM_SEED'],
                                        img_size=config['IMAGE_RES'],
-                                       # target_rescale=config['TARGET_TRANS'],
-                                       # input_rescale=config['INPUT_TRANS'],
-                                       # condition_rescale=config['CONDITION_TRANS'],
                                        classes=config['LABELS'],
-                                       train_ratio=0.95,
-                                       valid_ratio=0.02,
+                                       train_ratio=config['TRAIN_RATIO'],
+                                       valid_ratio=config['VALID_RATIO'],
                                        # augment=self.augmentation,
                                        subset='train')
         self.valid_data = DatasetCAMUS(dataset_path=dataset_path,
-                                       # input_name=config['INPUT_NAME'],
-                                       # target_name=config['TARGET_NAME'],
-                                       # condition_name=config['CONDITION_NAME'],
+                                       random_state=config['RANDOM_SEED'],
                                        img_size=config['IMAGE_RES'],
-                                       # target_rescale=config['TARGET_TRANS'],
-                                       # input_rescale=config['INPUT_TRANS'],
-                                       # condition_rescale=config['CONDITION_TRANS'],
                                        classes=config['LABELS'],
-                                       train_ratio=0.95,
-                                       valid_ratio=0.02,
+                                       train_ratio=config['TRAIN_RATIO'],
+                                       valid_ratio=config['VALID_RATIO'],
                                        # augment=self.augmentation,
                                        subset='valid')
 
         self.test_data = DatasetCAMUS(dataset_path=dataset_path,
-                                       # input_name=config['INPUT_NAME'],
-                                       # target_name=config['TARGET_NAME'],
-                                       # condition_name=config['CONDITION_NAME'],
-                                       img_size=config['IMAGE_RES'],
-                                       # target_rescale=config['TARGET_TRANS'],
-                                       # input_rescale=config['INPUT_TRANS'],
-                                       # condition_rescale=config['CONDITION_TRANS'],
-                                       classes=config['LABELS'],
-                                       train_ratio=0.95,
-                                       valid_ratio=0.02,
-                                       # augment=self.augmentation,
-                                       subset='test')
+                                      random_state=config['RANDOM_SEED'],
+                                      img_size=config['IMAGE_RES'],
+                                      classes=config['LABELS'],
+                                      train_ratio=config['TRAIN_RATIO'],
+                                      valid_ratio=config['VALID_RATIO'],
+                                      # augment=self.augmentation,
+                                      subset='test')
 
         self.train_loader = torch.utils.data.DataLoader(self.train_data,
                                                         batch_size=config['BATCH_SIZE'],  # 32 max
@@ -163,8 +159,8 @@ class GAN:
         # valid = torch.tensor(np.ones((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
         # fake = torch.tensor(np.zeros((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
 
-
-        for epoch in range(self.epochs):
+        for epoch in range(self.loaded_epoch, self.epochs):
+            self.epoch = epoch
             for i, batch in enumerate(self.train_loader):
                 target, target_gt, inputs, weight_map, quality, heart_state, view = batch
 
@@ -226,7 +222,7 @@ class GAN:
                 # --------------
 
                 # Determine approximate time left
-                batches_done = epoch * len(self.train_loader) + i
+                batches_done = self.epoch * len(self.train_loader) + i
                 batches_left = self.epochs * len(self.train_loader) - batches_done
                 time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
                 prev_time = time.time()
@@ -235,7 +231,7 @@ class GAN:
                 sys.stdout.write(
                     "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] ETA: %s"
                     % (
-                        epoch,
+                        self.epoch,
                         self.epochs,
                         i,
                         len(self.train_loader),
@@ -252,6 +248,7 @@ class GAN:
                 if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
 
+
                 # log wandb
                 self.step += 1
                 if self.use_wandb:
@@ -260,15 +257,9 @@ class GAN:
                                'loss_G': loss_G, 'loss_pixel': loss_pixel, 'loss_GAN': loss_GAN},
 
                               step=self.step)
-
-    # not used
-    def weights_init_normal(m):
-        classname = m.__class__.__name__
-        if classname.find("Conv") != -1:
-            torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-        elif classname.find("BatchNorm2d") != -1:
-            torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
-            torch.nn.init.constant_(m.bias.data, 0.0)
+            if epoch % save_model_interval == 0:
+                self.save(f'{self.base_dir}/generator_last_checkpoint.bin', model='generator')
+                self.save(f'{self.base_dir}/discriminator_last_checkpoint.bin', model='discriminator')
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
@@ -282,3 +273,49 @@ class GAN:
         if self.use_wandb:
             import wandb
             wandb.log({'val_image': img_sample.cpu()}, step=self.step)
+
+    def save(self, path, model='generator'):
+        if model == 'generator':
+            self.generator.eval()
+            torch.save({
+                'model_state_dict': self.generator.state_dict(),
+                'optimizer_state_dict': self.optimizer_G.state_dict(),
+
+                # 'scheduler_state_dict': self.scheduler.state_dict(),
+                # 'best_summary_loss': self.best_summary_loss,
+                'epoch': self.epoch,
+            }, path)
+            print('\ngenerator saved, epoch ', self.epoch)
+        elif model == 'discriminator':
+
+            self.discriminator.eval()
+            torch.save({
+                'model_state_dict': self.discriminator.state_dict(),
+                'optimizer_state_dict': self.optimizer_D.state_dict(),
+
+                # 'optimizer_state_dict': self.optimizer.state_dict(),
+                # 'scheduler_state_dict': self.scheduler.state_dict(),
+                # 'best_summary_loss': self.best_summary_loss,
+                'epoch': self.epoch,
+            }, path)
+            print('discriminator saved, epoch ', self.epoch)
+
+
+    def load(self, path, model='generator'):
+        if model == 'generator':
+            checkpoint = torch.load(path)
+            self.generator.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer_G.load_state_dict(checkpoint['optimizer_state_dict'])
+            # self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            # self.best_summary_loss = checkpoint['best_summary_loss']
+            self.loaded_epoch = checkpoint['epoch'] + 1
+            print('generator loaded, epoch ', self.loaded_epoch)
+        elif model == 'discriminator':
+            checkpoint = torch.load(path)
+            self.discriminator.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer_D.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.loaded_epoch = checkpoint['epoch'] + 1
+            print('discriminator loaded, epoch ', self.loaded_epoch)
+
+            # self.best_summary_loss = checkpoint['best_summary_loss']
+
