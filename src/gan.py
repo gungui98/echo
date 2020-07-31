@@ -86,45 +86,45 @@ class GAN:
                 self.augmentation[key] = value
 
         self.train_data = DatasetCAMUS(dataset_path=dataset_path,
-                                       input_name=config['INPUT_NAME'],
-                                       target_name=config['TARGET_NAME'],
-                                       condition_name=config['CONDITION_NAME'],
-                                       img_res=config['IMAGE_RES'],
-                                       target_rescale=config['TARGET_TRANS'],
-                                       input_rescale=config['INPUT_TRANS'],
-                                       condition_rescale=config['CONDITION_TRANS'],
-                                       labels=config['LABELS'],
+                                       # input_name=config['INPUT_NAME'],
+                                       # target_name=config['TARGET_NAME'],
+                                       # condition_name=config['CONDITION_NAME'],
+                                       img_size=config['IMAGE_RES'],
+                                       # target_rescale=config['TARGET_TRANS'],
+                                       # input_rescale=config['INPUT_TRANS'],
+                                       # condition_rescale=config['CONDITION_TRANS'],
+                                       classes=config['LABELS'],
                                        train_ratio=0.95,
                                        valid_ratio=0.02,
-                                       augment=self.augmentation,
+                                       # augment=self.augmentation,
                                        subset='train')
         self.valid_data = DatasetCAMUS(dataset_path=dataset_path,
-                                       input_name=config['INPUT_NAME'],
-                                       target_name=config['TARGET_NAME'],
-                                       condition_name=config['CONDITION_NAME'],
-                                       img_res=config['IMAGE_RES'],
-                                       target_rescale=config['TARGET_TRANS'],
-                                       input_rescale=config['INPUT_TRANS'],
-                                       condition_rescale=config['CONDITION_TRANS'],
-                                       labels=config['LABELS'],
+                                       # input_name=config['INPUT_NAME'],
+                                       # target_name=config['TARGET_NAME'],
+                                       # condition_name=config['CONDITION_NAME'],
+                                       img_size=config['IMAGE_RES'],
+                                       # target_rescale=config['TARGET_TRANS'],
+                                       # input_rescale=config['INPUT_TRANS'],
+                                       # condition_rescale=config['CONDITION_TRANS'],
+                                       classes=config['LABELS'],
                                        train_ratio=0.95,
                                        valid_ratio=0.02,
-                                       augment=self.augmentation,
+                                       # augment=self.augmentation,
                                        subset='valid')
 
         self.test_data = DatasetCAMUS(dataset_path=dataset_path,
-                                      input_name=config['INPUT_NAME'],
-                                      target_name=config['TARGET_NAME'],
-                                      condition_name=config['CONDITION_NAME'],
-                                      img_res=config['IMAGE_RES'],
-                                      target_rescale=config['TARGET_TRANS'],
-                                      input_rescale=config['INPUT_TRANS'],
-                                      condition_rescale=config['CONDITION_TRANS'],
-                                      labels=config['LABELS'],
-                                      train_ratio=0.95,
-                                      valid_ratio=0.02,
-                                      augment=self.augmentation,
-                                      subset='test')
+                                       # input_name=config['INPUT_NAME'],
+                                       # target_name=config['TARGET_NAME'],
+                                       # condition_name=config['CONDITION_NAME'],
+                                       img_size=config['IMAGE_RES'],
+                                       # target_rescale=config['TARGET_TRANS'],
+                                       # input_rescale=config['INPUT_TRANS'],
+                                       # condition_rescale=config['CONDITION_TRANS'],
+                                       classes=config['LABELS'],
+                                       train_ratio=0.95,
+                                       valid_ratio=0.02,
+                                       # augment=self.augmentation,
+                                       subset='test')
 
         self.train_loader = torch.utils.data.DataLoader(self.train_data,
                                                         batch_size=config['BATCH_SIZE'],  # 32 max
@@ -164,7 +164,7 @@ class GAN:
 
         for epoch in range(self.epochs):
             for i, batch in enumerate(self.train_loader):
-                target, target_gt, inputs, weight_map = batch
+                target, target_gt, inputs, weight_map, quality, heart_state, view = batch
 
                 target_gt = target_gt.to(self.device)
                 target = target.to(self.device)

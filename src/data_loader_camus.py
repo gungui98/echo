@@ -17,6 +17,18 @@ encode_qualities = {'Good': np.array([0, 0, 1]), 'Medium': np.array([0, 1, 0]), 
 encode_heart_states = {'ES': np.array([1, 0]), 'ED': np.array([0, 1])}
 encode_views = {'2CH': np.array([1, 0]), '4CH': np.array([0, 1])}
 
+import os
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import Dataset
+from skimage.transform import resize
+import SimpleITK as itk
+
+encode_qualities = {'Good': np.array([0, 0, 1]), 'Medium': np.array([0, 1, 0]), 'Poor': np.array([1, 0, 0])}
+encode_heart_states = {'ES': np.array([1, 0]), 'ED': np.array([0, 1])}
+encode_views = {'2CH': np.array([1, 0]), '4CH': np.array([0, 1])}
+
 
 class DatasetCAMUS(Dataset):
 
@@ -36,6 +48,7 @@ class DatasetCAMUS(Dataset):
                  shuffle=True,
                  #                  lv_crop_ratio=1.2,
                  #                  lv_crop_aspect_ratio=.5,
+                 subset='train'
                  ):
 
         np.random.seed(random_state)
@@ -48,7 +61,7 @@ class DatasetCAMUS(Dataset):
         self.views = views
         self.image_qualities = image_qualities
         self.patient_qualities = patient_qualities
-        self.stage = 'train'
+        self.subset = subset
 
         if folds:
             self.num_folds = max(0, folds)
@@ -180,25 +193,12 @@ class DatasetCAMUS(Dataset):
                     if sum(list(count.values())) == 50:
                         break
 
-        img_pathes = [os.path.join(self.dataset_path, obj['patient'], obj['img_name']) for index, obj in
-                      lv.df_images.iterrows()]
-        msk_pathes = [os.path.join(self.dataset_path, obj['patient'], obj['msk_name']) for index, obj in
-                      lv.df_images.iterrows()]
-        img_qualities = [obj['quality'] for index, obj in lv.df_images.iterrows()]
-        img_views = [obj['view'] for index, obj in lv.df_images.iterrows()]
-        img_heart_states = [obj['heart_state'] for index, obj in lv.df_images.iterrows()]
-
         if self.train_ratio:
-            self.train_img_pathes = img_pathes[:int(self.train_ratio * len(img_pathes))]
-            self.train_msk_pathes = msk_pathes[:int(self.train_ratio * len(msk_pathes))]
-            self.train_qualities = img_qualities[:int(self.train_ratio * len(img_qualities))]
-            self.train_views = img_views[:int(self.train_ratio * len(img_views))]
-            self.train_heart_states = img_heart_states[:int(self.train_ratio * len(img_heart_states))]
-
-    #             self.valid_img_pathes = img_pathes[int(self.train_ratio * len(img_pathes)):int(self.train_ratio * len(img_pathes) + self.valid_ratio * len(img_pathes))]
-    #             self.valid_msk_pathes = msk_pathes[int(self.train_ratio * len(msk_pathes)):int(self.train_ratio * len(img_pathes) + self.valid_ratio * len(img_pathes))]
-    #             self.test_img_pathes = img_pathes[int(self.train_ratio * len(img_pathes) + self.valid_ratio * len(img_pathes)):]
-    #             self.test_msk_pathes = msk_pathes[int(self.train_ratio * len(img_pathes) + self.valid_ratio * len(img_pathes)):]
+            self.train_df_images = self.df_images[:int(self.train_ratio * len(self.df_images))]
+            self.valid_df_images = self.df_images[int(self.train_ratio * len(self.df_images)):int(
+                self.train_ratio * len(self.df_images) + self.valid_ratio * len(self.df_images))]
+            self.test_df_images = self.df_images[
+                                  int(self.train_ratio * len(self.df_images) + self.valid_ratio * len(self.df_images)):]
 
     def calculate_stat(self):
         #  Вычисление статистик по набору данных
@@ -229,8 +229,8 @@ class DatasetCAMUS(Dataset):
                     self.df_patients[self.df_patients['fold'] == fold]['quality'].value_counts() / len(
                         self.df_patients) * self.num_folds)
 
-    def set_state(self, stage, fold=None):
-        self.stage = stage
+    def set_state(self, subset, fold=None):
+        self.subset = subset
 
     def read_mhd(self, img_path):
         image_itk = itk.ReadImage(img_path)
@@ -264,35 +264,33 @@ class DatasetCAMUS(Dataset):
         return gauss
 
     def __len__(self):
-        if self.stage == 'train':
-            return len(self.train_img_pathes)
-        elif self.stage == 'valid':
-            return len(self.valid_img_pathes)
-        elif self.stage == 'test':
-            return len(self.test_img_pathes)
+        if self.subset == 'train':
+            return len(self.train_df_images)
+        elif self.subset == 'valid':
+            return len(self.valid_df_images)
+        elif self.subset == 'test':
+            return len(self.test_df_images)
 
     def __getitem__(self, index):
-        if self.stage == 'train':
-            image = self.read_mhd(self.train_img_pathes[index])
-            image = resize(image, self.img_size, order=1)
-            full_mask = self.read_mhd(self.train_msk_pathes[index])
-            full_mask = resize(full_mask, self.img_size, preserve_range=True, anti_aliasing=False, order=0)
-            quality = encode_qualities[self.train_qualities[index]]
-            heart_state = encode_heart_states[self.train_heart_states[index]]
-            view = encode_views[self.train_views[index]]
-        elif self.stage == 'valid':
-            image = self.read_mhd(self.valid_img_pathes[index])
-            image = resize(image, self.img_size, order=1)
-            full_mask = self.read_mhd(self.valid_msk_pathes[index])
-            full_mask = resize(full_mask, self.img_size, preserve_range=True, anti_aliasing=False, order=0)
-        elif self.stage == 'test':
-            image = self.read_mhd(self.test_img_pathes[index])
-            image = resize(image, self.img_size, order=1)
-            full_mask = self.read_mhd(self.test_msk_pathes[index])
-            full_mask = resize(full_mask, self.img_size, preserve_range=True, anti_aliasing=False, order=0)
+        if self.subset == 'train':
+            obj = self.train_df_images.iloc[index]
+        elif self.subset == 'valid':
+            obj = self.valid_df_images.iloc[index]
+        elif self.subset == 'test':
+            obj = self.test_df_images.iloc[index]
+
+        image = self.read_mhd(os.path.join(self.dataset_path, obj['patient'], obj['img_name']))
+        image = resize(image, self.img_size, order=1)
+
+        full_mask = self.read_mhd(os.path.join(self.dataset_path, obj['patient'], obj['msk_name']))
+        full_mask = resize(full_mask, self.img_size, preserve_range=True, anti_aliasing=False, order=0)
+
+        quality = encode_qualities[obj['quality']]
+        heart_state = encode_heart_states[obj['heart_state']]
+        view = encode_views[obj['view']]
 
         mask = full_mask.copy()
-        for not_l in {0, 1, 2, 3} - self.classes:
+        for not_l in {0, 1, 2, 3} - set(self.classes):
             mask[mask == not_l] = 0
 
         weight_map = self.get_weight_map(mask)
