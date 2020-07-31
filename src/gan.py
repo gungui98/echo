@@ -3,7 +3,8 @@ import torch
 from models import GeneratorUNet, Discriminator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
-from torchsummary import summary
+
+# from torchsummary import summary
 import datetime
 import time
 import sys
@@ -63,9 +64,8 @@ class GAN:
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
-        #print(self.generator)
-        #print(self.discriminator)
-
+        # print(self.generator)
+        # print(self.discriminator)
 
         # self.generator.apply(self.weights_init_normal)
         # self.discriminator.apply(self.weights_init_normal)
@@ -77,6 +77,7 @@ class GAN:
                                             lr=config['LEARNING_RATE_D'], betas=(config['ADAM_B1'], 0.999))
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
+
         self.criterion_pixelwise = torch.nn.L1Loss().to(self.device)  # MAE
         # criterion_pixelwise = torch.nn.L1Loss(reduction='none') # + weight + mean
 
@@ -162,6 +163,7 @@ class GAN:
         # valid = torch.tensor(np.ones((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
         # fake = torch.tensor(np.zeros((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
 
+
         for epoch in range(self.epochs):
             for i, batch in enumerate(self.train_loader):
                 target, target_gt, inputs, weight_map, quality, heart_state, view = batch
@@ -238,8 +240,8 @@ class GAN:
                         i,
                         len(self.train_loader),
                         loss_D.item(),
-                        loss_fake * 100,
-                        loss_real * 100,
+                        loss_fake.item(),
+                        loss_real.item(),
                         loss_G.item(),
                         loss_pixel.item(),
                         loss_GAN.item(),
@@ -276,3 +278,7 @@ class GAN:
         fake_echo = self.generator(condition)
         img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
         save_image(img_sample, "images/%s.png" % (batches_done), nrow=4, normalize=True)
+
+        if self.use_wandb:
+            import wandb
+            wandb.log({'val_image': img_sample.cpu()}, step=self.step)
