@@ -168,6 +168,7 @@ class GAN:
                 target = target.to(self.device)
                 inputs = inputs.to(self.device)  # not used
                 weight_map = weight_map.to(self.device)  # not used
+                quality = quality.to(self.device)
 
                 valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
                 fake = torch.tensor(np.zeros((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
@@ -177,7 +178,7 @@ class GAN:
                 # ---------------------
 
                 self.optimizer_D.zero_grad()
-                fake_echo = self.generator(target_gt)
+                fake_echo = self.generator(target_gt, quality)
 
                 # if self.conditional_d:
                 # Real loss
@@ -201,7 +202,7 @@ class GAN:
                 self.optimizer_G.zero_grad()
 
                 # GAN loss
-                fake_echo = self.generator(inputs)
+                fake_echo = self.generator(inputs, quality)
                 pred_fake = self.discriminator(fake_echo, target_gt)
                 loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
 
@@ -263,11 +264,13 @@ class GAN:
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
-        imgs = next(iter(self.valid_loader))
-        condition = imgs[0].to(self.device)
-        real_echo = imgs[1].to(self.device)
-        fake_echo = self.generator(condition)
-        img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
+        target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
+        #
+        target_gt = target_gt.to(self.device)
+        target = target.to(self.device)
+        quality = quality.to(self.device)
+        fake_echo = self.generator(target, quality)
+        img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
         save_image(img_sample, "images/%s.png" % (batches_done), nrow=4, normalize=True)
 
         if self.use_wandb:
