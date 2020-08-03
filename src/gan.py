@@ -162,6 +162,9 @@ class GAN:
         for epoch in range(self.loaded_epoch, self.epochs):
             self.epoch = epoch
             for i, batch in enumerate(self.train_loader):
+                self.generator.train()
+                self.discriminator.train()
+                
                 target, target_gt, inputs, weight_map, quality, heart_state, view = batch
 
                 target_gt = target_gt.to(self.device)
@@ -245,6 +248,8 @@ class GAN:
                     )
                 )
                 # save valid images
+                self.generator.eval()
+                self.discriminator.eval()
                 if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
                     self.sample_images2(batches_done)
