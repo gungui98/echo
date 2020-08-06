@@ -1,11 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-
-
-#def weighted_mae(weight_map, fake, real):
-#    criterion_pixelwise = torch.nn.L1Loss(reduction='none')
-#    return torch.mean(criterion_pixelwise(fake, real) * weight_map)
 
 
 def gen_fig(inputs, generated, targets):
