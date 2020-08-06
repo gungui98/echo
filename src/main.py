@@ -56,14 +56,12 @@ def main(argv):
 
 
     model = GAN(config, FLAGS.use_wandb, device, FLAGS.dataset_path)
-    print('models initialized')
 
 
     # load trained models if they exist
     if FLAGS.ckpt_load is not None:
         model.load(f'{FLAGS.ckpt_load}/generator_last_checkpoint.bin', model='generator')
         model.load(f'{FLAGS.ckpt_load}/discriminator_last_checkpoint.bin', model='discriminator')
-        print('models loaded')
 
     if FLAGS.test:
         model.test()

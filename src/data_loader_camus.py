@@ -287,9 +287,9 @@ class DatasetCAMUS(Dataset):
         full_mask = torch.tensor(full_mask).float().unsqueeze(dim=0)
         weight_map = torch.tensor(weight_map).float().unsqueeze(dim=0)
 
-        quality = torch.tensor(quality).float().unsqueeze(dim=0) # .long()
-        heart_state = torch.tensor(heart_state).float().unsqueeze(dim=0)
-        view = torch.tensor(view).float().unsqueeze(dim=0)
+        quality = torch.tensor(quality).long().unsqueeze(dim=0)
+        heart_state = torch.tensor(heart_state).long().unsqueeze(dim=0)
+        view = torch.tensor(view).long().unsqueeze(dim=0)
         return image, mask, full_mask, weight_map, quality, heart_state, view
 
 
