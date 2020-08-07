@@ -162,6 +162,10 @@ class GAN:
         for epoch in range(self.loaded_epoch, self.epochs):
             self.epoch = epoch
             for i, batch in enumerate(self.train_loader):
+
+                self.generator.train()
+                self.discriminator.train()
+
                 target, target_gt, inputs, weight_map, quality, heart_state, view = batch
 
                 target_gt = target_gt.to(self.device)
@@ -245,8 +249,12 @@ class GAN:
                     )
                 )
                 # save valid images
+                self.generator.eval()
+                self.discriminator.eval()
+
                 if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
+                    self.sample_images2(batches_done)
 
 
                 # log wandb
@@ -268,11 +276,52 @@ class GAN:
         real_echo = imgs[1].to(self.device)
         fake_echo = self.generator(condition)
         img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
-        save_image(img_sample, "images/%s.png" % (batches_done), nrow=4, normalize=True)
+        save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
+
+        #if self.use_wandb:
+        #    import wandb
+        #    wandb.log({'val_image': img_sample.cpu()}, step=self.step)
+
+    def sample_images2(self, batches_done):
+        """Saves a generated sample from the validation set"""
+        target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
+        #
+        target_gt = target_gt.to(self.device)
+        target = target.to(self.device)
+        quality = quality.to(self.device)
+        fake_echo = self.generator(target)#, quality)
+        # img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
+        target = target.cpu().detach().numpy()
+        fake_echo = fake_echo.cpu().detach().numpy()
+        target_gt = target_gt.cpu().detach().numpy()
+        quality = quality.cpu().detach().numpy()
+
+        batch = 5
+
+        img_sample = np.concatenate([target,
+                                     fake_echo,
+                                     target_gt], axis=1)
+        q = ['low', 'med', 'high']
+        import matplotlib.pyplot as plt
+        rows, cols = 3, batch
+        titles = ['Condition', 'Generated', 'Original']
+        fig, axs = plt.subplots(rows, cols)
+        cnt = 0
+        for row in range(rows):
+            for col in range(cols):
+                class_label = np.argmax(quality[col], axis=1)[0]
+
+                axs[row, col].imshow(img_sample[col, row, :, :], cmap='gray')
+                axs[row, col].set_title(titles[row] + ' ' + q[class_label], fontdict={'fontsize': 6})
+                axs[row, col].axis('off')
+                cnt += 1
+
+        # fig.savefig('%s/%s/%s/%s_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num))
+        fig.savefig("images/_%s.png" % batches_done)
 
         if self.use_wandb:
             import wandb
-            wandb.log({'val_image': img_sample.cpu()}, step=self.step)
+            wandb.log({'val_image': fig}, step=self.step)
 
     def save(self, path, model='generator'):
         if model == 'generator':

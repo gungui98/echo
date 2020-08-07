@@ -26,7 +26,7 @@ class UNetUp(nn.Module):
             nn.Conv2d(out_size, out_size, 3, 1, 1),
             #nn.InstanceNorm2d(out_size),
             nn.BatchNorm2d(out_size, momentum=0.8),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
         ]
         #if dropout:
         #    layers.append(nn.Dropout(dropout))
