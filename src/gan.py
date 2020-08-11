@@ -1,10 +1,12 @@
 import numpy as np
 import torch
+# from models_old import GeneratorUNet, Discriminator
 from models import GeneratorUNet, Discriminator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
+import metrics
 from apex import amp
-
+import math
 # from torchsummary import summary
 import datetime
 import time
@@ -194,7 +196,8 @@ class GAN:
                 inputs = inputs.to(self.device)  # not used
                 weight_map = weight_map.to(self.device)  # not used
 
-                valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32,
+                                     device=self.device)  # might be not full batch
                 fake = torch.tensor(np.zeros((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
 
                 # ---------------------
@@ -202,7 +205,7 @@ class GAN:
                 # ---------------------
 
                 self.optimizer_D.zero_grad()
-                fake_echo = self.generator(target_gt)
+                fake_echo = self.generator(inputs)  # target_gt inputs
 
                 # if self.conditional_d:
                 # Real loss
@@ -217,7 +220,7 @@ class GAN:
                 loss_D = 0.5 * (loss_real + loss_fake)
 
                 with amp.scale_loss(loss_D, self.optimizer_D) as scaled_loss:
-                    scaled_loss.backward()
+                    scaled_loss.backward(retain_graph=True)
 
                 self.optimizer_D.step()
 
@@ -228,9 +231,10 @@ class GAN:
                 self.optimizer_G.zero_grad()
 
                 # GAN loss
-                fake_echo = self.generator(inputs)
-                pred_fake = self.discriminator(fake_echo, target_gt)
-                loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
+                # fake_echo = self.generator(inputs)
+                # pred_fake = self.discriminator(fake_echo, target_gt)
+                # loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
+                loss_GAN = loss_fake
 
                 # Pixel-wise loss
                 loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target) * weight_map)
@@ -255,10 +259,10 @@ class GAN:
                 batches_left = self.epochs * len(self.train_loader) - batches_done
                 time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
                 prev_time = time.time()
-
+                psnr = metrics.psnr(target_gt, fake_echo)
                 # print log
                 sys.stdout.write(
-                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] ETA: %s"
+                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] PSNR: %f ETA: %s"
                     % (
                         self.epoch,
                         self.epochs,
@@ -270,6 +274,7 @@ class GAN:
                         loss_G.item(),
                         loss_pixel.item(),
                         loss_GAN.item(),
+                        psnr,
                         time_left,
                     )
                 )
@@ -279,15 +284,15 @@ class GAN:
 
                 if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
-                    # self.sample_images2(batches_done)
-
+                    self.sample_images2(batches_done)
 
                 # log wandb
                 self.step += 1
                 if self.use_wandb:
                     import wandb
                     wandb.log({'loss_D': loss_D, 'loss_real_D': loss_real, 'loss_fake_D': loss_fake,
-                               'loss_G': loss_G, 'loss_pixel': loss_pixel, 'loss_GAN': loss_GAN},
+                               'loss_G': loss_G, 'loss_pixel': loss_pixel, 'loss_GAN': loss_GAN,
+                               'PSNR': psnr},
 
                               step=self.step)
             if epoch % save_model_interval == 0:
@@ -296,26 +301,27 @@ class GAN:
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
-        imgs = next(iter(self.valid_loader))
-        condition = imgs[1].to(self.device)
-        real_echo = imgs[0].to(self.device)
-        fake_echo = self.generator(condition)
-        img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
+        target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
+        target_gt = target_gt.to(self.device)
+        target = target.to(self.device)
+        quality = quality.to(self.device)
+        fake_echo = self.generator(target)  # , quality)
+        img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
+
         save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
 
-        #if self.use_wandb:
+        # if self.use_wandb:
         #    import wandb
         #    wandb.log({'val_image': img_sample.cpu()}, step=self.step)
 
     def sample_images2(self, batches_done):
         """Saves a generated sample from the validation set"""
         target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
-        #
         target_gt = target_gt.to(self.device)
         target = target.to(self.device)
         quality = quality.to(self.device)
-        fake_echo = self.generator(target)#, quality)
-        # img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
+        fake_echo = self.generator(target)  # , quality)
+
         target = target.cpu().detach().numpy()
         fake_echo = fake_echo.cpu().detach().numpy()
         target_gt = target_gt.cpu().detach().numpy()
@@ -359,7 +365,7 @@ class GAN:
                 # 'best_summary_loss': self.best_summary_loss,
                 'epoch': self.epoch,
             }, path)
-            print('\ngenerator saved, epoch ', self.epoch)
+            # print('\ngenerator saved, epoch ', self.epoch)
         elif model == 'discriminator':
 
             self.discriminator.eval()
@@ -372,8 +378,7 @@ class GAN:
                 # 'best_summary_loss': self.best_summary_loss,
                 'epoch': self.epoch,
             }, path)
-            print('discriminator saved, epoch ', self.epoch)
-
+            # print('discriminator saved, epoch ', self.epoch)
 
     def load(self, path, model='generator'):
         if model == 'generator':
@@ -392,4 +397,3 @@ class GAN:
             print('discriminator loaded, epoch ', self.loaded_epoch)
 
             # self.best_summary_loss = checkpoint['best_summary_loss']
-
