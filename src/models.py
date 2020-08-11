@@ -48,7 +48,7 @@ class UNetUp(nn.Module):
         x = self.model(x)
         x = torch.cat((x, skip_input), 1)
 
-        return swish(x)
+        return x
 
 
 class GeneratorUNet(nn.Module):

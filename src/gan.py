@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from models import GeneratorUNet, Discriminator, Generator
+from models import GeneratorUNet, Discriminator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
 from apex import amp
@@ -80,7 +80,6 @@ class GAN:
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
 
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
-        # self.generator = Generator(8, 0).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
