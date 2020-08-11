@@ -1,8 +1,9 @@
 import numpy as np
 import torch
-from models import GeneratorUNet, Discriminator
+from models import GeneratorUNet, Discriminator, Generator
 from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
+from apex import amp
 
 # from torchsummary import summary
 import datetime
@@ -79,6 +80,7 @@ class GAN:
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
 
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
+        # self.generator = Generator(8, 0).to(self.device)
         self.discriminator = Discriminator(in_channels=self.channels).to(self.device)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
@@ -86,6 +88,14 @@ class GAN:
                                             betas=(config['ADAM_B1'], 0.999))  # 0.0002
         self.optimizer_D = torch.optim.Adam(self.discriminator.parameters(),
                                             lr=config['LEARNING_RATE_D'], betas=(config['ADAM_B1'], 0.999))
+
+        opt_level = 'O1'
+        self.generator, self.optimizer_G = amp.initialize(self.generator,
+                                                          self.optimizer_G,
+                                                          opt_level=opt_level)
+        self.discriminator, self.optimizer_D = amp.initialize(self.discriminator,
+                                                              self.optimizer_D,
+                                                              opt_level=opt_level)
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
 
@@ -103,6 +113,10 @@ class GAN:
                                        classes=config['LABELS'],
                                        train_ratio=config['TRAIN_RATIO'],
                                        valid_ratio=config['VALID_RATIO'],
+                                       heart_states=config['HEART_STATES'],
+                                       views=config['HEART_VIEWS'],
+                                       image_qualities=config['IMAGE_QUALITIES'],
+                                       patient_qualities=config['PATIENT_QUALITIES'],
                                        # augment=self.augmentation,
                                        subset='train')
         self.valid_data = DatasetCAMUS(dataset_path=dataset_path,
@@ -111,6 +125,10 @@ class GAN:
                                        classes=config['LABELS'],
                                        train_ratio=config['TRAIN_RATIO'],
                                        valid_ratio=config['VALID_RATIO'],
+                                       heart_states=config['HEART_STATES'],
+                                       views=config['HEART_VIEWS'],
+                                       image_qualities=config['IMAGE_QUALITIES'],
+                                       patient_qualities=config['PATIENT_QUALITIES'],
                                        # augment=self.augmentation,
                                        subset='valid')
 
@@ -120,6 +138,10 @@ class GAN:
                                       classes=config['LABELS'],
                                       train_ratio=config['TRAIN_RATIO'],
                                       valid_ratio=config['VALID_RATIO'],
+                                      heart_states=config['HEART_STATES'],
+                                      views=config['HEART_VIEWS'],
+                                      image_qualities=config['IMAGE_QUALITIES'],
+                                      patient_qualities=config['PATIENT_QUALITIES'],
                                       # augment=self.augmentation,
                                       subset='test')
 
@@ -195,7 +217,9 @@ class GAN:
                 # Total loss
                 loss_D = 0.5 * (loss_real + loss_fake)
 
-                loss_D.backward()
+                with amp.scale_loss(loss_D, self.optimizer_D) as scaled_loss:
+                    scaled_loss.backward()
+
                 self.optimizer_D.step()
 
                 # ------------------
@@ -217,7 +241,9 @@ class GAN:
                 loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 100
                 # loss_G = loss_GAN + loss_pixel
 
-                loss_G.backward()
+                with amp.scale_loss(loss_G, self.optimizer_G) as scaled_loss:
+                    scaled_loss.backward()
+                # loss_G.backward()
 
                 self.optimizer_G.step()
 
@@ -254,7 +280,7 @@ class GAN:
 
                 if batches_done % self.log_interval == 0:
                     self.sample_images(batches_done)
-                    self.sample_images2(batches_done)
+                    # self.sample_images2(batches_done)
 
 
                 # log wandb
@@ -272,8 +298,8 @@ class GAN:
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
         imgs = next(iter(self.valid_loader))
-        condition = imgs[0].to(self.device)
-        real_echo = imgs[1].to(self.device)
+        condition = imgs[1].to(self.device)
+        real_echo = imgs[0].to(self.device)
         fake_echo = self.generator(condition)
         img_sample = torch.cat((condition.data, fake_echo.data, real_echo.data), -2)
         save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
