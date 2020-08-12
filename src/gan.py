@@ -101,7 +101,7 @@ class GAN:
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
 
         self.criterion_pixelwise = torch.nn.L1Loss(reduction='none').to(self.device)  # MAE
-        # criterion_pixelwise = torch.nn.L1Loss(reduction='none') # + weight + mean
+        # self.criterion_pixelwise = torch.nn.BCEWithLogitsLoss().to(self.device) # + weight + mean
 
         self.augmentation = dict()
         for key, value in config.items():
@@ -189,12 +189,13 @@ class GAN:
                 self.generator.train()
                 self.discriminator.train()
 
-                target, target_gt, inputs, weight_map, quality, heart_state, view = batch
+                target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = batch
 
                 target_gt = target_gt.to(self.device)
                 target = target.to(self.device)
                 inputs = inputs.to(self.device)  # not used
                 weight_map = weight_map.to(self.device)  # not used
+                segment_mask = segment_mask.to(self.device)
 
                 valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32,
                                      device=self.device)  # might be not full batch
@@ -204,8 +205,12 @@ class GAN:
                 #  Train Discriminator
                 # ---------------------
 
+                self.generator.eval()
+                self.discriminator.train()
+
                 self.optimizer_D.zero_grad()
-                fake_echo = self.generator(inputs)  # target_gt inputs
+
+                fake_echo = self.generator(inputs) * segment_mask  # target_gt inputs
 
                 # if self.conditional_d:
                 # Real loss
@@ -220,7 +225,7 @@ class GAN:
                 loss_D = 0.5 * (loss_real + loss_fake)
 
                 with amp.scale_loss(loss_D, self.optimizer_D) as scaled_loss:
-                    scaled_loss.backward(retain_graph=True)
+                    scaled_loss.backward()
 
                 self.optimizer_D.step()
 
@@ -228,17 +233,20 @@ class GAN:
                 #  Train Generators
                 # ------------------
 
+                self.generator.train()
+                self.discriminator.eval()
+
                 self.optimizer_G.zero_grad()
 
                 # GAN loss
-                # fake_echo = self.generator(inputs)
-                # pred_fake = self.discriminator(fake_echo, target_gt)
-                # loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
-                loss_GAN = loss_fake
+                fake_echo = self.generator(inputs)
+                pred_fake = self.discriminator(fake_echo, target_gt)
+                loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
+                # loss_GAN = loss_fake
 
                 # Pixel-wise loss
-                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target) * weight_map)
-                # loss_pixel = self.criterion_pixelwise(fake_echo, target)
+                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target) * segment_mask)
+                # loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target))
 
                 # Total loss
                 loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 100
@@ -279,10 +287,10 @@ class GAN:
                     )
                 )
                 # save valid images
-                self.generator.eval()
-                self.discriminator.eval()
 
                 if batches_done % self.log_interval == 0:
+                    self.generator.eval()
+                    self.discriminator.eval()
                     self.sample_images(batches_done)
                     self.sample_images2(batches_done)
 
@@ -295,17 +303,18 @@ class GAN:
                                'PSNR': psnr},
 
                               step=self.step)
-            if epoch % save_model_interval == 0:
+            if (epoch + 1) % save_model_interval == 0:
                 self.save(f'{self.base_dir}/generator_last_checkpoint.bin', model='generator')
                 self.save(f'{self.base_dir}/discriminator_last_checkpoint.bin', model='discriminator')
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
-        target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
+        target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
         target_gt = target_gt.to(self.device)
         target = target.to(self.device)
         quality = quality.to(self.device)
-        fake_echo = self.generator(target)  # , quality)
+        segment_mask = segment_mask.to(self.device)
+        fake_echo = self.generator(target) * segment_mask # , quality)
         img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
 
         save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
@@ -316,11 +325,12 @@ class GAN:
 
     def sample_images2(self, batches_done):
         """Saves a generated sample from the validation set"""
-        target, target_gt, inputs, weight_map, quality, heart_state, view = next(iter(self.valid_loader))
+        target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
         target_gt = target_gt.to(self.device)
         target = target.to(self.device)
         quality = quality.to(self.device)
-        fake_echo = self.generator(target)  # , quality)
+        segment_mask = segment_mask.to(self.device)
+        fake_echo = self.generator(target) * segment_mask  # , quality)
 
         target = target.cpu().detach().numpy()
         fake_echo = fake_echo.cpu().detach().numpy()

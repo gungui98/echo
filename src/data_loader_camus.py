@@ -281,16 +281,18 @@ class DatasetCAMUS(Dataset):
             mask[mask == not_l] = 0
 
         weight_map = self.get_weight_map(mask)
+        segment_mask = image != 0
 
         image = torch.tensor(image).float().unsqueeze(dim=0)
         mask = torch.tensor(mask).float().unsqueeze(dim=0)
         full_mask = torch.tensor(full_mask).float().unsqueeze(dim=0)
         weight_map = torch.tensor(weight_map).float().unsqueeze(dim=0)
+        segment_mask = torch.tensor(segment_mask).float().unsqueeze(dim=0)
 
         quality = torch.tensor(quality).long().unsqueeze(dim=0)
         heart_state = torch.tensor(heart_state).long().unsqueeze(dim=0)
         view = torch.tensor(view).long().unsqueeze(dim=0)
-        return image, mask, full_mask, weight_map, quality, heart_state, view
+        return image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view
 
 
 class DatasetCAMUS_prev(Dataset):

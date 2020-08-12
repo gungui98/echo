@@ -1,22 +1,23 @@
 from torch import nn
 import torch
+import numpy as np
 
 
 class UNetDown(nn.Module):
-    def __init__(self, in_size, out_size, normalize=True, dropout=0.0):
+    def __init__(self, in_size, out_size, normalize=True, dropout=None):
         super(UNetDown, self).__init__()
         layers = [
-            nn.Conv2d(in_size, in_size, 3, 1, 1, bias=True)]
-        if normalize:
-            #layers.append(nn.InstanceNorm2d(out_size))
-            layers.append(nn.BatchNorm2d(in_size, momentum=0.8))
-        layers.append(nn.LeakyReLU(0.2))
-        layers.append(nn.Conv2d(in_size, out_size, 3, 2, 1, bias=True))
+            nn.Conv2d(in_size, out_size, 4, 2, 1, bias=True)]
+        # if normalize:
+        #     #layers.append(nn.InstanceNorm2d(out_size))
+        #     layers.append(nn.BatchNorm2d(in_size, momentum=0.8))
+        # layers.append(nn.LeakyReLU(0.2))
+        # layers.append(nn.Conv2d(in_size, out_size, 3, 2, 1, bias=True))
         if normalize:
             #layers.append(nn.InstanceNorm2d(out_size))
             layers.append(nn.BatchNorm2d(out_size, momentum=0.8))
         layers.append(nn.LeakyReLU(0.2))
-        #if dropout:
+        # if dropout:
         #    layers.append(nn.Dropout(dropout))
         self.model = nn.Sequential(*layers)
 
@@ -28,19 +29,19 @@ class UNetUp(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
         layers = [
-            nn.Conv2d(in_size, in_size, 3, 1, 1),
-            nn.BatchNorm2d(in_size, momentum=0.8),
-            nn.LeakyReLU(inplace=True),
+            # nn.Conv2d(in_size, in_size, 4, 2, 1),
+            # nn.BatchNorm2d(in_size, momentum=0.8),
+            # nn.LeakyReLU(inplace=True),
             nn.Conv2d(in_size, 4 * out_size, 3, 1, 1),
+            nn.LeakyReLU(0.2),
             nn.BatchNorm2d(4 * out_size, momentum=0.8),
-            nn.LeakyReLU(inplace=True),
             nn.PixelShuffle(2),
             #nn.InstanceNorm2d(out_size),
             # nn.BatchNorm2d(out_size, momentum=0.8),
             # nn.LeakyReLU(inplace=True),
         ]
-        #if dropout:
-        #    layers.append(nn.Dropout(dropout))
+        if dropout:
+           layers.append(nn.Dropout(dropout))
 
         self.model = nn.Sequential(*layers)
 
@@ -58,16 +59,16 @@ class GeneratorUNet(nn.Module):
         self.down1 = UNetDown(in_channels, 64, normalize=False)
         self.down2 = UNetDown(64, 128)
         self.down3 = UNetDown(128, 256)
-        self.down4 = UNetDown(256, 512) #, dropout=0.5)
-        self.down5 = UNetDown(512, 512)#, dropout=0.5)
-        self.down6 = UNetDown(512, 512)#, dropout=0.5)
-        self.down7 = UNetDown(512, 512)#, dropout=0.5)
-        self.down8 = UNetDown(512, 512)#, dropout=0.5)
-
-        self.up1 = UNetUp(512, 512)#, dropout=0.5)
-        self.up2 = UNetUp(1024, 512)#, dropout=0.5)
-        self.up3 = UNetUp(1024, 512)#, dropout=0.5)
-        self.up4 = UNetUp(1024, 512)#, dropout=0.5)
+        self.down4 = UNetDown(256, 512, dropout=0.5)
+        self.down5 = UNetDown(512, 512, dropout=0.5)
+        self.down6 = UNetDown(512, 512, dropout=0.5)
+        self.down7 = UNetDown(512, 512, dropout=0.5)
+        # self.down8 = UNetDown(1024, 1024, dropout=0.5)
+        #
+        # self.up1 = UNetUp(1024, 1024, dropout=0.5)
+        self.up2 = UNetUp(512, 512, dropout=0.5)
+        self.up3 = UNetUp(1024, 512, dropout=0.5)
+        self.up4 = UNetUp(1024, 512, dropout=0.5)
         self.up5 = UNetUp(1024, 256)
         self.up6 = UNetUp(512, 128)
         self.up7 = UNetUp(256, 64)
@@ -75,10 +76,9 @@ class GeneratorUNet(nn.Module):
 
         self.final = nn.Sequential(
             # nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
-            #nn.Upsample(scale_factor=2),
-            #nn.ZeroPad2d((1, 0, 1, 0)),
+            # nn.ZeroPad2d((1, 0, 1, 0)),
             # nn.Conv2d(out_channels, out_channels, 3, 1, 1),
-            nn.Conv2d(128, 4, 3, 1, 1),
+            nn.Conv2d(128, out_channels * 4, 3, 1, 1),
             nn.PixelShuffle(2),
             #nn.Tanh(),
             nn.Sigmoid(),
@@ -93,9 +93,9 @@ class GeneratorUNet(nn.Module):
         d5 = self.down5(d4)
         d6 = self.down6(d5)
         d7 = self.down7(d6)
-        d8 = self.down8(d7)
-        u1 = self.up1(d8, d7)
-        u2 = self.up2(u1, d6)
+        # d8 = self.down8(d7)
+        # u1 = self.up1(d8, d7)
+        u2 = self.up2(d7, d6)
         u3 = self.up3(u2, d5)
         u4 = self.up4(u3, d4)
         u5 = self.up5(u4, d3)
@@ -111,26 +111,51 @@ class GeneratorUNet(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels=1):
+    def __init__(self, img_size=(256,256), patch_size=(16,16), in_channels=1):
         super(Discriminator, self).__init__()
 
         def discriminator_block(in_filters, out_filters, normalization=True):
             """Returns downsampling layers of each discriminator block"""
             layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
+            # if normalization:
+            #     #layers.append(nn.InstanceNorm2d(out_filters))
+            #     layers.append(nn.BatchNorm2d(in_filters))
+            # layers.append(nn.LeakyReLU(0.2, inplace=True))
+            # layers.append(nn.Conv2d(in_filters, out_filters, 3, stride=2, padding=1))
             if normalization:
                 #layers.append(nn.InstanceNorm2d(out_filters))
                 layers.append(nn.BatchNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
 
+        if img_size[0] % patch_size[0] or img_size[1] % patch_size[1]:
+            assert('Can\'t do patch from such image size.')
+
+        if img_size[0] / patch_size[0] == img_size[1] / patch_size[1]:
+            assert ('Can\'t do patch from such image size.')
+
+        k = int(np.log2(img_size[0] / patch_size[0]))
+        model_layers = []
+        for i in range(k):
+            if i == 0:
+                in_features =  in_channels * 2
+            else:
+                in_features = 2 ** (i + 5)
+            out_features = 2 ** (i + 6)
+            model_layers += discriminator_block(in_features, out_features)
+
+        print(model_layers)
+
         self.model = nn.Sequential(
-            *discriminator_block(in_channels * 2, 64, normalization=False),
-            *discriminator_block(64, 128),
-            *discriminator_block(128, 256),
-            *discriminator_block(256, 512),
+            # *discriminator_block(in_channels * 2, 64),
+            # *discriminator_block(64, 128),
+            # *discriminator_block(128, 256),
+            # *discriminator_block(256, 512),
+            *model_layers,
             nn.ZeroPad2d((1, 0, 1, 0)),
             # nn.Conv2d(256, 1, 4, padding=1, bias=False)
-            nn.Conv2d(512, 1, 4, padding=1, bias=False)
+            nn.Conv2d(2 ** (i + 6), 1, 4, padding=1, bias=False),
+            nn.Sigmoid()
         )
 
     def forward(self, condition, target):
