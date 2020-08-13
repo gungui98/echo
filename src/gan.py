@@ -177,49 +177,39 @@ class GAN:
         log_interval = self.log_interval
         save_model_interval = self.save_model_interval
 
-        # Adversarial ground truths for discriminator losses
-
-        # valid = torch.tensor(np.ones((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
-        # fake = torch.tensor(np.zeros((batch_size,) + self.num_patches), dtype=torch.float32, device=self.device)
-
         for epoch in range(self.loaded_epoch, self.epochs):
             self.epoch = epoch
             for i, batch in enumerate(self.train_loader):
 
-                self.generator.train()
-                self.discriminator.train()
+                image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = batch
 
-                target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = batch
-
-                target_gt = target_gt.to(self.device)
-                target = target.to(self.device)
-                inputs = inputs.to(self.device)  # not used
-                weight_map = weight_map.to(self.device)  # not used
+                mask = mask.to(self.device)
+                image = image.to(self.device)
+                full_mask = full_mask.to(self.device)
+                weight_map = weight_map.to(self.device)
                 segment_mask = segment_mask.to(self.device)
 
-                valid = torch.tensor(np.ones((target_gt.size(0), *self.patch)), dtype=torch.float32,
-                                     device=self.device)  # might be not full batch
-                fake = torch.tensor(np.zeros((target_gt.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                # Adversarial ground truths for discriminator losses
+                patch_real = torch.tensor(np.ones((mask.size(0), *self.patch)), dtype=torch.float32, device=self.device)
+                patch_fake = torch.tensor(np.zeros((mask.size(0), *self.patch)), dtype=torch.float32,
+                                          device=self.device)
 
-                # ---------------------
                 #  Train Discriminator
-                # ---------------------
 
                 self.generator.eval()
                 self.discriminator.train()
 
                 self.optimizer_D.zero_grad()
 
-                fake_echo = self.generator(inputs) * segment_mask  # target_gt inputs
+                fake_echo = self.generator(full_mask)  # * segment_mask  # mask
 
-                # if self.conditional_d:
                 # Real loss
-                pred_real = self.discriminator(target, target_gt)
-                loss_real = self.criterion_GAN(pred_real, valid)
+                pred_real = self.discriminator(image, mask)
+                loss_real = self.criterion_GAN(pred_real, patch_real)
 
                 # Fake loss
-                pred_fake = self.discriminator(fake_echo.detach(), target_gt)
-                loss_fake = self.criterion_GAN(pred_fake, fake)
+                pred_fake = self.discriminator(fake_echo.detach(), mask)
+                loss_fake = self.criterion_GAN(pred_fake, patch_fake)
 
                 # Total loss
                 loss_D = 0.5 * (loss_real + loss_fake)
@@ -229,9 +219,7 @@ class GAN:
 
                 self.optimizer_D.step()
 
-                # ------------------
-                #  Train Generators
-                # ------------------
+                #  Train Generator
 
                 self.generator.train()
                 self.discriminator.eval()
@@ -239,38 +227,37 @@ class GAN:
                 self.optimizer_G.zero_grad()
 
                 # GAN loss
-                fake_echo = self.generator(inputs)
-                pred_fake = self.discriminator(fake_echo, target_gt)
-                loss_GAN = self.criterion_GAN(pred_fake, fake)  # valid
+                fake_echo = self.generator(full_mask)
+                pred_fake = self.discriminator(fake_echo, mask)
+                loss_GAN = self.criterion_GAN(pred_fake, patch_fake)
                 # loss_GAN = loss_fake
 
                 # Pixel-wise loss
-                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target) * segment_mask)
-                # loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, target))
+                loss_pixel = torch.mean(self.criterion_pixelwise(fake_echo, image) * weight_map)  # * segment_mask
 
                 # Total loss
-                loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 100
-                # loss_G = loss_GAN + loss_pixel
+                loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
 
                 with amp.scale_loss(loss_G, self.optimizer_G) as scaled_loss:
                     scaled_loss.backward()
-                # loss_G.backward()
 
                 self.optimizer_G.step()
 
-                # --------------
                 #  Log Progress
-                # --------------
 
                 # Determine approximate time left
                 batches_done = self.epoch * len(self.train_loader) + i
                 batches_left = self.epochs * len(self.train_loader) - batches_done
                 time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
                 prev_time = time.time()
-                psnr = metrics.psnr(target_gt, fake_echo)
+
+                # metrics
+                psnr = metrics.psnr(mask, fake_echo)  # * segment_mask
+                ssim = metrics.ssim(mask, fake_echo, window_size=11, size_average=True)  # * segment_mask
+
                 # print log
                 sys.stdout.write(
-                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] PSNR: %f ETA: %s"
+                    "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f patch_fake: %f real: %f] [G loss: %f, pixel: %f, adv: %f] PSNR: %f SSIM: %f ETA: %s"
                     % (
                         self.epoch,
                         self.epochs,
@@ -283,11 +270,12 @@ class GAN:
                         loss_pixel.item(),
                         loss_GAN.item(),
                         psnr,
+                        ssim,
                         time_left,
                     )
                 )
-                # save valid images
 
+                # save images
                 if batches_done % self.log_interval == 0:
                     self.generator.eval()
                     self.discriminator.eval()
@@ -300,48 +288,52 @@ class GAN:
                     import wandb
                     wandb.log({'loss_D': loss_D, 'loss_real_D': loss_real, 'loss_fake_D': loss_fake,
                                'loss_G': loss_G, 'loss_pixel': loss_pixel, 'loss_GAN': loss_GAN,
-                               'PSNR': psnr},
+                               'PSNR': psnr, 'SSIM': ssim},
 
                               step=self.step)
+
+            # save models
             if (epoch + 1) % save_model_interval == 0:
                 self.save(f'{self.base_dir}/generator_last_checkpoint.bin', model='generator')
                 self.save(f'{self.base_dir}/discriminator_last_checkpoint.bin', model='discriminator')
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
-        target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
-        target_gt = target_gt.to(self.device)
-        target = target.to(self.device)
+        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
+        image = image.to(self.device)
+        mask = mask.to(self.device)
+        full_mask = full_mask.to(self.device)
         quality = quality.to(self.device)
         segment_mask = segment_mask.to(self.device)
-        fake_echo = self.generator(target) * segment_mask # , quality)
-        img_sample = torch.cat((target.data, fake_echo.data, target_gt.data), -2)
-
+        fake_echo = self.generator(full_mask)  # * segment_mask # , quality)
+        img_sample = torch.cat((image.data, fake_echo.data, mask.data), -2)
         save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
 
         # if self.use_wandb:
         #    import wandb
         #    wandb.log({'val_image': img_sample.cpu()}, step=self.step)
 
+    # paper-like + wandb
     def sample_images2(self, batches_done):
         """Saves a generated sample from the validation set"""
-        target, target_gt, inputs, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
-        target_gt = target_gt.to(self.device)
-        target = target.to(self.device)
+        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
+        mask = mask.to(self.device)
+        full_mask = full_mask.to(self.device)
+        image = image.to(self.device)
         quality = quality.to(self.device)
         segment_mask = segment_mask.to(self.device)
-        fake_echo = self.generator(target) * segment_mask  # , quality)
+        fake_echo = self.generator(full_mask)  # * segment_mask  # , quality)
 
-        target = target.cpu().detach().numpy()
+        image = image.cpu().detach().numpy()
         fake_echo = fake_echo.cpu().detach().numpy()
-        target_gt = target_gt.cpu().detach().numpy()
+        mask = mask.cpu().detach().numpy()
         quality = quality.cpu().detach().numpy()
 
         batch = 5
 
-        img_sample = np.concatenate([target,
+        img_sample = np.concatenate([image,
                                      fake_echo,
-                                     target_gt], axis=1)
+                                     mask], axis=1)
         q = ['low', 'med', 'high']
         import matplotlib.pyplot as plt
         rows, cols = 3, batch
