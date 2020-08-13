@@ -18,8 +18,28 @@ class UNetDown(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
 class UNetUp(nn.Module):
+    def __init__(self, in_size, out_size, dropout=0.0):
+        super(UNetUp, self).__init__()
+        layers = [
+            nn.Conv2d(in_size, 4 * out_size, 3, 1, 1),
+
+            nn.BatchNorm2d(4 * out_size, momentum=0.8),
+            nn.LeakyReLU(0.2),
+            nn.PixelShuffle(2),
+        ]
+        if dropout:
+           layers.append(nn.Dropout(dropout))
+
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x, skip_input):
+        x = self.model(x)
+        x = torch.cat((x, skip_input), 1)
+
+        return x
+
+class UNetUp_old(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
         layers = [
