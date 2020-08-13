@@ -94,58 +94,28 @@ class GeneratorUNet(nn.Module):
 ##############################
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels=1):
-        super(Discriminator, self).__init__()
-
-        def discriminator_block(in_filters, out_filters, normalization=True):
-            """Returns downsampling layers of each discriminator block"""
-            layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
-            if normalization:
-                layers.append(nn.BatchNorm2d(out_filters))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return layers
-
-        self.model = nn.Sequential(
-            *discriminator_block(in_channels * 2, 64, normalization=False),
-            *discriminator_block(64, 128),
-            *discriminator_block(128, 256),
-            *discriminator_block(256, 512),
-            nn.ZeroPad2d((1, 0, 1, 0)),
-            nn.Conv2d(512, 1, 4, padding=1, bias=False)
-        )
-
-    def forward(self, condition, target):
-        # Concatenate image and condition image by channels to produce input
-        img_input = torch.cat((condition, target), 1)
-        return self.model(img_input)
-
-
-class Discriminator_new(nn.Module):
     def __init__(self, img_size=(256, 256), patch_size=(16, 16), in_channels=1):
         super(Discriminator, self).__init__()
+        print('patch size ', patch_size)
 
         def discriminator_block(in_filters, out_filters, normalization=True):
             """Returns downsampling layers of each discriminator block"""
             layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
-            # if normalization:
-            #     #layers.append(nn.InstanceNorm2d(out_filters))
-            #     layers.append(nn.BatchNorm2d(in_filters))
-            # layers.append(nn.LeakyReLU(0.2, inplace=True))
-            # layers.append(nn.Conv2d(in_filters, out_filters, 3, stride=2, padding=1))
+
             if normalization:
-                # layers.append(nn.InstanceNorm2d(out_filters))
                 layers.append(nn.BatchNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
 
         if img_size[0] % patch_size[0] or img_size[1] % patch_size[1]:
-            assert ('Can\'t do patch from such image size.')
+            assert 'Can\'t do patch from such image size.'
 
         if img_size[0] / patch_size[0] == img_size[1] / patch_size[1]:
-            assert ('Can\'t do patch from such image size.')
+            assert 'Can\'t do patch from such image size.'
 
         k = int(np.log2(img_size[0] / patch_size[0]))
         model_layers = []
+
         for i in range(k):
             if i == 0:
                 in_features = in_channels * 2
@@ -153,17 +123,13 @@ class Discriminator_new(nn.Module):
                 in_features = 2 ** (i + 5)
             out_features = 2 ** (i + 6)
             model_layers += discriminator_block(in_features, out_features)
-
-        print(model_layers)
+        print('layers D', k)
+        # print(model_layers)
 
         self.model = nn.Sequential(
-            # *discriminator_block(in_channels * 2, 64),
-            # *discriminator_block(64, 128),
-            # *discriminator_block(128, 256),
-            # *discriminator_block(256, 512),
+
             *model_layers,
             nn.ZeroPad2d((1, 0, 1, 0)),
-            # nn.Conv2d(256, 1, 4, padding=1, bias=False)
             nn.Conv2d(2 ** (i + 6), 1, 4, padding=1, bias=False),
             nn.Sigmoid()
         )
