@@ -83,8 +83,10 @@ class GeneratorUNet(nn.Module):
         self.up7 = UNetUp(256, 64)
 
         self.final = nn.Sequential(
-            nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
-            nn.Conv2d(out_channels, out_channels, 3, 1, 1),
+            nn.Conv2d(128, 4*out_channels, 3, 1, 1),
+            nn.PixelShuffle(2),
+            # nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
+            # nn.Conv2d(out_channels, out_channels, 3, 1, 1),
             nn.Sigmoid(),
         )
 
@@ -134,15 +136,10 @@ class Discriminator(nn.Module):
             assert 'Can\'t do patch from such image size.'
 
         k = int(np.log2(img_size[0] / patch_size[0]))
-        model_layers = []
+        model_layers = [*discriminator_block(in_channels * 2, 64)]
 
-        for i in range(k):
-            if i == 0:
-                in_features = in_channels * 2
-            else:
-                in_features = 2 ** (i + 5)
-            out_features = 2 ** (i + 6)
-            model_layers += discriminator_block(in_features, out_features)
+        for i in range(k - 1):
+            model_layers += discriminator_block(64 * 2 ** i, 64 * 2 ** (i + 1))
         print('layers D', k)
         # print(model_layers)
 
@@ -150,7 +147,7 @@ class Discriminator(nn.Module):
 
             *model_layers,
             nn.ZeroPad2d((1, 0, 1, 0)),
-            nn.Conv2d(2 ** (i + 6), 1, 4, padding=1, bias=False),
+            nn.Conv2d(64 * 2 ** (i + 1), 1, 4, padding=1, bias=False),
             nn.Sigmoid()
         )
 
