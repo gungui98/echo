@@ -82,7 +82,7 @@ class GAN:
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
 
         self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
-        self.discriminator = Discriminator(in_channels=self.channels, patch_size=(patch_size, patch_size)).to(self.device)
+        self.discriminator = Discriminator(img_size=(self.img_rows, self.img_cols), in_channels=self.channels, patch_size=(patch_size, patch_size)).to(self.device)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
                                             lr=config['LEARNING_RATE_G'],

@@ -18,8 +18,28 @@ class UNetDown(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
 class UNetUp(nn.Module):
+    def __init__(self, in_size, out_size, dropout=0.0):
+        super(UNetUp, self).__init__()
+        layers = [
+            nn.Conv2d(in_size, 4 * out_size, 3, 1, 1),
+
+            nn.BatchNorm2d(4 * out_size, momentum=0.8),
+            nn.LeakyReLU(0.2),
+            nn.PixelShuffle(2),
+        ]
+        if dropout:
+           layers.append(nn.Dropout(dropout))
+
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x, skip_input):
+        x = self.model(x)
+        x = torch.cat((x, skip_input), 1)
+
+        return x
+
+class UNetUp_old(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
         layers = [
@@ -63,8 +83,10 @@ class GeneratorUNet(nn.Module):
         self.up7 = UNetUp(256, 64)
 
         self.final = nn.Sequential(
-            nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
-            nn.Conv2d(out_channels, out_channels, 3, 1, 1),
+            nn.Conv2d(128, 4*out_channels, 3, 1, 1),
+            nn.PixelShuffle(2),
+            # nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
+            # nn.Conv2d(out_channels, out_channels, 3, 1, 1),
             nn.Sigmoid(),
         )
 
@@ -114,15 +136,10 @@ class Discriminator(nn.Module):
             assert 'Can\'t do patch from such image size.'
 
         k = int(np.log2(img_size[0] / patch_size[0]))
-        model_layers = []
+        model_layers = [*discriminator_block(in_channels * 2, 64)]
 
-        for i in range(k):
-            if i == 0:
-                in_features = in_channels * 2
-            else:
-                in_features = 2 ** (i + 5)
-            out_features = 2 ** (i + 6)
-            model_layers += discriminator_block(in_features, out_features)
+        for i in range(k - 1):
+            model_layers += discriminator_block(64 * 2 ** i, 64 * 2 ** (i + 1))
         print('layers D', k)
         # print(model_layers)
 
@@ -130,7 +147,7 @@ class Discriminator(nn.Module):
 
             *model_layers,
             nn.ZeroPad2d((1, 0, 1, 0)),
-            nn.Conv2d(2 ** (i + 6), 1, 4, padding=1, bias=False),
+            nn.Conv2d(64 * 2 ** (i + 1), 1, 4, padding=1, bias=False),
             nn.Sigmoid()
         )
 
