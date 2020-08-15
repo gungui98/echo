@@ -18,6 +18,8 @@ class UNetDown(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+
+
 class UNetUp(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
@@ -29,7 +31,7 @@ class UNetUp(nn.Module):
             nn.PixelShuffle(2),
         ]
         if dropout:
-           layers.append(nn.Dropout(dropout))
+            layers.append(nn.Dropout(dropout))
 
         self.model = nn.Sequential(*layers)
 
@@ -39,13 +41,14 @@ class UNetUp(nn.Module):
 
         return x
 
+
 class UNetUp_old(nn.Module):
     def __init__(self, in_size, out_size, dropout=0.0):
         super(UNetUp, self).__init__()
         layers = [
             nn.ConvTranspose2d(in_size, out_size, 4, 2, 1, bias=True),
             nn.Conv2d(out_size, out_size, 3, 1, 1),
-            #nn.ReLU(inplace=True),  # paper
+            # nn.ReLU(inplace=True),  # paper
             nn.BatchNorm2d(out_size, momentum=0.8),
             nn.ReLU(inplace=True),
         ]
@@ -83,7 +86,7 @@ class GeneratorUNet(nn.Module):
         self.up7 = UNetUp(256, 64)
 
         self.final = nn.Sequential(
-            nn.Conv2d(128, 4*out_channels, 3, 1, 1),
+            nn.Conv2d(128, 4 * out_channels, 3, 1, 1),
             nn.PixelShuffle(2),
             # nn.ConvTranspose2d(128, out_channels, 4, 2, 1),
             # nn.Conv2d(out_channels, out_channels, 3, 1, 1),

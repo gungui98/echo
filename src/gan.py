@@ -6,6 +6,7 @@ from data_loader_camus import DatasetCAMUS
 from torchvision.utils import save_image
 import metrics
 from apex import amp
+import torch.nn as nn
 import math
 # from torchsummary import summary
 import datetime
@@ -36,7 +37,7 @@ seed_everything(SEED)
 
 
 class GAN:
-    def __init__(self, config, use_wandb, device, dataset_path):
+    def __init__(self, config, use_wandb, device, dataset_path, ngpu):
 
         # Configure data loader
         self.config = config
@@ -44,6 +45,7 @@ class GAN:
 
         self.use_wandb = use_wandb
         self.device = device
+        self.ngpu = ngpu
         self.epochs = config['EPOCHS']
         self.log_interval = config['LOG_INTERVAL']
         self.step = 0
@@ -81,8 +83,19 @@ class GAN:
         self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
 
-        self.generator = GeneratorUNet(in_channels=self.channels, out_channels=self.channels).to(self.device)
-        self.discriminator = Discriminator(img_size=(self.img_rows, self.img_cols), in_channels=self.channels, patch_size=(patch_size, patch_size)).to(self.device)
+        self.generator = GeneratorUNet(in_channels=self.channels,
+                                       out_channels=self.channels)
+
+        self.discriminator = Discriminator(img_size=(self.img_rows, self.img_cols),
+                                           in_channels=self.channels,
+                                           patch_size=(patch_size, patch_size))
+
+        if self.ngpu > 1:  # torch.cuda.device_count()
+            self.generator = nn.DataParallel(self.generator)
+            self.discriminator = nn.DataParallel(self.discriminator)
+
+        self.generator.to(self.device)
+        self.discriminator.to(self.device)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
                                             lr=config['LEARNING_RATE_G'],
