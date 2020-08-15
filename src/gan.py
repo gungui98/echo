@@ -14,6 +14,7 @@ import time
 import sys
 import random
 import os
+from utils import weights_init
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -96,6 +97,9 @@ class GAN:
 
         self.generator.to(self.device)
         self.discriminator.to(self.device)
+
+        self.generator.apply(weights_init)
+        self.discriminator.apply(weights_init)
 
         self.optimizer_G = torch.optim.Adam(self.generator.parameters(),
                                             lr=config['LEARNING_RATE_G'],
@@ -368,6 +372,8 @@ class GAN:
         if self.use_wandb:
             import wandb
             wandb.log({'val_image': fig}, step=self.step)
+
+
 
     def save(self, path, model='generator'):
         if model == 'generator':
