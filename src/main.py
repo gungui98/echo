@@ -16,7 +16,7 @@ flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
 flags.DEFINE_string('wandb_run_name', 'blah-blah', 'wandb run name')
 flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
-flags.DEFINE_integer('ngpu', 1, 'number of GPUs to use')
+flags.DEFINE_integer('ngpu', 2, 'number of GPUs to use')
 # in the config now
 # flags.DEFINE_float('train_ratio', 0.95,
 #                   'Ratio of training data used for training and the rest used for testing. Set this value to 1.0 if '

@@ -90,10 +90,6 @@ class GAN:
                                            in_channels=self.channels,
                                            patch_size=(patch_size, patch_size))
 
-        if self.ngpu > 1:  # torch.cuda.device_count()
-            self.generator = nn.DataParallel(self.generator)
-            self.discriminator = nn.DataParallel(self.discriminator)
-
         self.generator.to(self.device)
         self.discriminator.to(self.device)
 
@@ -110,6 +106,9 @@ class GAN:
         self.discriminator, self.optimizer_D = amp.initialize(self.discriminator,
                                                               self.optimizer_D,
                                                               opt_level=opt_level)
+        if self.ngpu > 1:  # torch.cuda.device_count()
+            self.generator = nn.DataParallel(self.generator)
+            self.discriminator = nn.DataParallel(self.discriminator)
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
 
