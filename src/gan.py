@@ -264,21 +264,21 @@ class GAN:
                                   inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
 
 
-                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
-                                                                                                self.discriminator_image,
-                                                                                                self.optimizer_GM2I,
-                                                                                                self.optimizer_D_image,
-                                                                                                inputs=mask,
-                                                                                                targets=image,
-                                                                                                weight_map=weight_map)
-
-                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
-                                                                                            self.discriminator_mask,
-                                                                                            self.optimizer_GI2M,
-                                                                                            self.optimizer_D_mask,
-                                                                                            inputs=fake_images.detach(),
-                                                                                            targets=mask,
-                                                                                            weight_map=weight_map)
+                # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
+                #                                                                                 self.discriminator_image,
+                #                                                                                 self.optimizer_GM2I,
+                #                                                                                 self.optimizer_D_image,
+                #                                                                                 inputs=mask,
+                #                                                                                 targets=image,
+                #                                                                                 weight_map=weight_map)
+                #
+                # fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
+                #                                                                             self.discriminator_mask,
+                #                                                                             self.optimizer_GI2M,
+                #                                                                             self.optimizer_D_mask,
+                #                                                                             inputs=fake_images.detach(),
+                #                                                                             targets=mask,
+                #                                                                             weight_map=weight_map)
 
                 # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
