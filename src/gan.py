@@ -176,7 +176,8 @@ class GAN:
         self.lr_G = config['LEARNING_RATE_G']
         self.lr_D = config['LEARNING_RATE_D']
 
-    def train_branch(self, generator, discriminator, optimizer_G, optimizer_D, inputs, targets, weight_map):
+    def train_branch(self, generator, discriminator, optimizer_G, optimizer_D, inputs, targets, weight_map,
+                     random_mask_prob):
         #  Train Discriminator
 
         patch_real = torch.tensor(np.ones((targets.size(0), *self.patch)), dtype=torch.float32, device=self.device)
@@ -224,7 +225,7 @@ class GAN:
         # loss_pixel = torch.zeros(1, device=self.device)
 
         # Total loss
-        if random.random() < 0.9:
+        if random.random() < random_mask_prob:
             loss_G = self.loss_weight_d * loss_GAN
         else:
             loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
@@ -255,18 +256,24 @@ class GAN:
                 weight_map = weight_map.to(self.device)
                 segment_mask = segment_mask.to(self.device)
 
-
-
                 # Adversarial ground truths for discriminator losses
                 # train Image to mask
-                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M, self.discriminator_mask, self.optimizer_GI2M,
-                                  self.optimizer_D_mask,
-                                  inputs=image, targets=mask, weight_map=weight_map)
+                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
+                                                                                            self.discriminator_mask,
+                                                                                            self.optimizer_GI2M,
+                                                                                            self.optimizer_D_mask,
+                                                                                            inputs=image, targets=mask,
+                                                                                            weight_map=weight_map,
+                                                                                            random_mask_prob=0.9)
                 # # train Mask to image
-                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
-                                  self.optimizer_D_image,
-                                  inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
-
+                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
+                                                                                                self.discriminator_image,
+                                                                                                self.optimizer_GM2I,
+                                                                                                self.optimizer_D_image,
+                                                                                                inputs=fake_masks.detach(),
+                                                                                                targets=image,
+                                                                                                weight_map=weight_map,
+                                                                                                random_mask_prob=0.0)
 
                 # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
                 #                                                                                 self.discriminator_image,
@@ -294,8 +301,8 @@ class GAN:
                 prev_time = time.time()
 
                 sys.stdout.write('\rEpoch: [{}/{}], Step: [{}/{}], Loss_G_mask: {:.4f}, Loss_GAN_mask: {:.4f},'
-                      ' Loss_pixel_mask: {:.4f}, Loss_G_image: {:.4f}, Loss_GAN_image: '
-                      '{:.4f}, Loss_pixel_image: {:.4f}, ETA: {}'.format(
+                                 ' Loss_pixel_mask: {:.4f}, Loss_G_image: {:.4f}, Loss_GAN_image: '
+                                 '{:.4f}, Loss_pixel_image: {:.4f}, ETA: {}'.format(
                     epoch, self.epochs, i, len(self.train_loader), loss_G_mask.item(), loss_GAN_mask.item(),
                     loss_pixel_mask.item(), loss_G_image.item(), loss_GAN_image.item(), loss_pixel_image.item(),
                     time_left))
