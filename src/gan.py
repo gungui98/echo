@@ -220,7 +220,7 @@ class GAN:
         # loss_GAN = loss_fake
 
         # Pixel-wise loss
-        loss_pixel = self.criterion_pixelwise(fake_targets, targets)
+        loss_pixel = self.criterion_pixelwise(fake_targets, targets) * weight_map
         loss_pixel = torch.mean(loss_pixel)  # * segment_mask
         # loss_pixel = torch.zeros(1, device=self.device)
 
@@ -277,21 +277,21 @@ class GAN:
                                                                                                 targets=image,
                                                                                                 weight_map=weight_map)
 
-                # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
-                #                                                                                 self.discriminator_image,
-                #                                                                                 self.optimizer_GM2I,
-                #                                                                                 self.optimizer_D_image,
-                #                                                                                 inputs=mask,
-                #                                                                                 targets=image,
-                #                                                                                 weight_map=weight_map)
-                #
-                # fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
-                #                                                                             self.discriminator_mask,
-                #                                                                             self.optimizer_GI2M,
-                #                                                                             self.optimizer_D_mask,
-                #                                                                             inputs=fake_images.detach(),
-                #                                                                             targets=mask,
-                #                                                                             weight_map=weight_map)
+                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
+                                                                                                self.discriminator_image,
+                                                                                                self.optimizer_GM2I,
+                                                                                                self.optimizer_D_image,
+                                                                                                inputs=mask,
+                                                                                                targets=image,
+                                                                                                weight_map=weight_map)
+
+                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
+                                                                                            self.discriminator_mask,
+                                                                                            self.optimizer_GI2M,
+                                                                                            self.optimizer_D_mask,
+                                                                                            inputs=fake_images.detach(),
+                                                                                            targets=mask,
+                                                                                            weight_map=weight_map)
 
                 # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
@@ -385,7 +385,7 @@ class GAN:
         segment_mask = segment_mask.to(self.device)
 
         fake_mask = self.generator_I2M(image)
-        fake_echo = self.generator_M2I(mask)
+        fake_echo = self.generator_M2I(fake_mask)
 
         image = image.cpu().detach().numpy()
         fake_echo = fake_echo.cpu().detach().numpy()
