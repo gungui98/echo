@@ -227,7 +227,7 @@ class GAN:
         loss_G.backward()
 
         optimizer_G.step()
-        return fake_targets
+        return fake_targets, loss_G, loss_GAN, loss_pixel
 
     def train(self):
 
@@ -252,14 +252,19 @@ class GAN:
 
                 # Adversarial ground truths for discriminator losses
                 # train Image to mask
-                fake_masks = self.train_branch(self.generator_I2M, self.discriminator_mask, self.optimizer_GI2M,
+                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M, self.discriminator_mask, self.optimizer_GI2M,
                                   self.optimizer_D_mask,
                                   inputs=image, targets=mask, weight_map=weight_map)
                 # train Mask to image
-                fake_images = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
+                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
                                   self.optimizer_D_image,
-                                  inputs=fake_masks, targets=image, weight_map=weight_map)
+                                  inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
 
+                sys.stdout.write('Epoch: [{}/{}], Step: [{}/{}], Loss_G_mask: {:.4f}, Loss_GAN_mask: {:.4f},'
+                      ' Loss_pixel_mask: {:.4f}, Loss_G_image: {:.4f}, Loss_GAN_image: '
+                      '{:.4f}, Loss_pixel_image: {:.4f}'.format(
+                    epoch, self.epochs, i, len(self.train_loader), loss_G_mask.item(), loss_GAN_mask.item(),
+                    loss_pixel_mask.item(), loss_G_image.item(), loss_GAN_image.item(), loss_pixel_image.item()))
                 #  Log Progress
 
                 # Determine approximate time left

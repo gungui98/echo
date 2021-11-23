@@ -14,7 +14,7 @@ flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test
 flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.')
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
-flags.DEFINE_string('wandb_run_name', 'blah-blah', 'wandb run name')
+flags.DEFINE_string('wandb_run_name', 'cycle-gan', 'wandb run name')
 flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
 # in the config now
 #flags.DEFINE_float('train_ratio', 0.95,
@@ -51,6 +51,7 @@ def main(argv):
 
     # Initialize GAN
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print(device)
 
 
