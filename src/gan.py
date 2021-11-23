@@ -250,6 +250,8 @@ class GAN:
                 weight_map = weight_map.to(self.device)
                 segment_mask = segment_mask.to(self.device)
 
+
+
                 # Adversarial ground truths for discriminator losses
                 # train Image to mask
                 fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M, self.discriminator_mask, self.optimizer_GI2M,
@@ -260,11 +262,6 @@ class GAN:
                                   self.optimizer_D_image,
                                   inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
 
-                sys.stdout.write('Epoch: [{}/{}], Step: [{}/{}], Loss_G_mask: {:.4f}, Loss_GAN_mask: {:.4f},'
-                      ' Loss_pixel_mask: {:.4f}, Loss_G_image: {:.4f}, Loss_GAN_image: '
-                      '{:.4f}, Loss_pixel_image: {:.4f}'.format(
-                    epoch, self.epochs, i, len(self.train_loader), loss_G_mask.item(), loss_GAN_mask.item(),
-                    loss_pixel_mask.item(), loss_G_image.item(), loss_GAN_image.item(), loss_pixel_image.item()))
                 #  Log Progress
 
                 # Determine approximate time left
@@ -272,6 +269,13 @@ class GAN:
                 batches_left = self.epochs * len(self.train_loader) - batches_done
                 time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
                 prev_time = time.time()
+
+                sys.stdout.write('\rEpoch: [{}/{}], Step: [{}/{}], Loss_G_mask: {:.4f}, Loss_GAN_mask: {:.4f},'
+                      ' Loss_pixel_mask: {:.4f}, Loss_G_image: {:.4f}, Loss_GAN_image: '
+                      '{:.4f}, Loss_pixel_image: {:.4f}, ETA: %s'.format(
+                    epoch, self.epochs, i, len(self.train_loader), loss_G_mask.item(), loss_GAN_mask.item(),
+                    loss_pixel_mask.item(), loss_G_image.item(), loss_GAN_image.item(), loss_pixel_image.item(),
+                    time_left))
 
                 # metrics
                 # psnr = metrics.psnr(mask, fake_echo)  # * segment_mask
@@ -366,7 +370,7 @@ class GAN:
                                      ], axis=1)
         q = ['low', 'med', 'high']
         import matplotlib.pyplot as plt
-        rows, cols = 3, batch
+        rows, cols = 4, batch
         titles = ['Real image', 'fake image', 'real mask', 'fake mask']
         fig, axs = plt.subplots(rows, cols)
         cnt = 0
