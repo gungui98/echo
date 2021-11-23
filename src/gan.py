@@ -283,7 +283,8 @@ class GAN:
                                                                                                 self.optimizer_D_image,
                                                                                                 inputs=mask,
                                                                                                 targets=image,
-                                                                                                weight_map=weight_map)
+                                                                                                weight_map=weight_map,
+                                                                                                batch_idx=i)
 
                 fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
                                                                                             self.discriminator_mask,
@@ -291,7 +292,8 @@ class GAN:
                                                                                             self.optimizer_D_mask,
                                                                                             inputs=fake_images.detach(),
                                                                                             targets=mask,
-                                                                                            weight_map=weight_map)
+                                                                                            weight_map=weight_map,
+                                                                                            batch_idx=i)
 
                 # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
@@ -366,7 +368,7 @@ class GAN:
         full_mask = full_mask.to(self.device)
         quality = quality.to(self.device)
         segment_mask = segment_mask.to(self.device)
-        fake_echo = self.generator(full_mask)  # * segment_mask # , quality)
+        fake_echo = self.generator(mask)  # * segment_mask # , quality)
         img_sample = torch.cat((image.data, fake_echo.data, mask.data), -2)
         save_image(img_sample, "images/%s.png" % batches_done, nrow=4, normalize=True)
 
