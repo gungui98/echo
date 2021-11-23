@@ -262,7 +262,7 @@ class GAN:
                 fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
                                   self.optimizer_D_image,
                                   inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
-                loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+                # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
 
                 # Determine approximate time left
