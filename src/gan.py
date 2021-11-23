@@ -1,18 +1,17 @@
+import datetime
+import os
+import random
+import sys
+import time
+
 import numpy as np
 import torch
+from torchvision.utils import save_image
+
+import metrics
+from data_loader_camus import DatasetCAMUS
 # from models_old import GeneratorUNet, Discriminator
 from models import GeneratorUNet, Discriminator
-from data_loader_camus import DatasetCAMUS
-from torchvision.utils import save_image
-import metrics
-from apex import amp
-import math
-# from torchsummary import summary
-import datetime
-import time
-import sys
-import random
-import os
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -90,13 +89,13 @@ class GAN:
         self.optimizer_D = torch.optim.Adam(self.discriminator.parameters(),
                                             lr=config['LEARNING_RATE_D'], betas=(config['ADAM_B1'], 0.999))
 
-        opt_level = 'O1'
-        self.generator, self.optimizer_G = amp.initialize(self.generator,
-                                                          self.optimizer_G,
-                                                          opt_level=opt_level)
-        self.discriminator, self.optimizer_D = amp.initialize(self.discriminator,
-                                                              self.optimizer_D,
-                                                              opt_level=opt_level)
+        # opt_level = 'O1'
+        # self.generator, self.optimizer_G = amp.initialize(self.generator,
+        #                                                   self.optimizer_G,
+        #                                                   opt_level=opt_level)
+        # self.discriminator, self.optimizer_D = amp.initialize(self.discriminator,
+        #                                                       self.optimizer_D,
+        #                                                       opt_level=opt_level)
 
         self.criterion_GAN = torch.nn.MSELoss().to(self.device)
 
@@ -214,8 +213,9 @@ class GAN:
                 # Total loss
                 loss_D = 0.5 * (loss_real + loss_fake)
 
-                with amp.scale_loss(loss_D, self.optimizer_D) as scaled_loss:
-                    scaled_loss.backward()
+                # with amp.scale_loss(loss_D, self.optimizer_D) as scaled_loss:
+                #     scaled_loss.backward()
+                loss_D.backward()
 
                 self.optimizer_D.step()
 
@@ -238,8 +238,9 @@ class GAN:
                 # Total loss
                 loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
 
-                with amp.scale_loss(loss_G, self.optimizer_G) as scaled_loss:
-                    scaled_loss.backward()
+                # with amp.scale_loss(loss_G, self.optimizer_G) as scaled_loss:
+                #     scaled_loss.backward()
+                loss_G.backward()
 
                 self.optimizer_G.step()
 
