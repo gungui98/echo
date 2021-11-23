@@ -220,7 +220,7 @@ class GAN:
         # loss_GAN = loss_fake
 
         # Pixel-wise loss
-        loss_pixel = self.criterion_pixelwise(fake_targets, targets) * weight_map
+        loss_pixel = self.criterion_pixelwise(fake_targets, targets)
         loss_pixel = torch.mean(loss_pixel)  # * segment_mask
         # loss_pixel = torch.zeros(1, device=self.device)
 
