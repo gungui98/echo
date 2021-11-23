@@ -219,7 +219,8 @@ class GAN:
         # loss_GAN = loss_fake
 
         # Pixel-wise loss
-        loss_pixel = torch.mean(self.criterion_pixelwise(fake_targets, targets) * weight_map)  # * segment_mask
+        # loss_pixel = torch.mean(self.criterion_pixelwise(fake_targets, targets) * weight_map)  # * segment_mask
+        loss_pixel = torch.zeros(1, device=self.device)
 
         # Total loss
         loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
@@ -258,9 +259,9 @@ class GAN:
                                   self.optimizer_D_mask,
                                   inputs=image, targets=mask, weight_map=weight_map)
                 # # train Mask to image
-                # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
-                #                   self.optimizer_D_image,
-                #                   inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
+                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I, self.discriminator_image, self.optimizer_GM2I,
+                                  self.optimizer_D_image,
+                                  inputs=fake_masks.detach(), targets=image, weight_map=weight_map)
                 loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
 
