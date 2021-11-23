@@ -385,7 +385,7 @@ class GAN:
         segment_mask = segment_mask.to(self.device)
 
         fake_mask = self.generator_I2M(image)
-        fake_echo = self.generator_M2I(fake_mask)
+        fake_echo = self.generator_M2I(mask)
 
         image = image.cpu().detach().numpy()
         fake_echo = fake_echo.cpu().detach().numpy()
