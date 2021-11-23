@@ -341,7 +341,7 @@ class GAN:
                     self.discriminator_image.eval()
 
                     # self.sample_images(batches_done)
-                    self.sample_images2(batches_done)
+                    self.sample_images2(f"{epoch}_{i}")
 
                 # # log wandb
                 # self.step += 1
