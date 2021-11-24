@@ -382,7 +382,7 @@ class GAN:
         self.generator_I2M.eval()
         sys.stdout.write('\n Evaluate... \n')
         IoU_list = []
-        for i, batch in enumerate(self.valid_loader):
+        for i, batch in enumerate(self.test_loader):
             image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view, random_hide_train_mask = batch
 
             mask = mask.to(self.device)
