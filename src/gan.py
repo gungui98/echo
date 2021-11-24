@@ -396,10 +396,10 @@ class GAN:
                 batch_iou = metrics.iou_metric_segmentation_batch(fake_mask, full_mask)
                 batch_iou = batch_iou.mean()
                 IoU_list.append(batch_iou)
-                print(f"Batch {i} IoU: {batch_iou}")
+                sys.stdout.write(f"\rBatch {i} IoU: {batch_iou}")
 
         IoU = np.mean(IoU_list)
-        print(f"Epoch {epoch} IoU: {IoU}")
+        sys.stdout.write(f"Epoch {epoch} IoU: {IoU}")
 
     # paper-like + wandb
     def sample_images2(self, batches_done):
