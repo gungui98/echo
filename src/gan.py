@@ -396,7 +396,7 @@ class GAN:
                 fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
                 batch_iou = metrics.iou_metric_segmentation(fake_mask, full_mask)
                 IoU_list.append(batch_iou)
-                sys.stdout.write(f"\rBatch {i} IoU: {batch_iou:.2f}")
+                sys.stdout.write(f"Validate Batch {i} IoU: {batch_iou:.2f}\n")
 
         IoU = torch.mean(torch.Tensor(IoU_list)).item() * 100
         sys.stdout.write(f"Epoch {epoch} validate IoU: {IoU:.2f}\n")
