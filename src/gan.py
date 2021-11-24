@@ -394,7 +394,6 @@ class GAN:
                 # threshold segmentation mask
                 fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
                 batch_iou = metrics.iou_metric_segmentation_batch(fake_mask, full_mask)
-                batch_iou = batch_iou.mean()
                 IoU_list.append(batch_iou)
                 sys.stdout.write(f"\rBatch {i} IoU: {batch_iou}")
 
