@@ -11,6 +11,7 @@ class MSELossWithMask(nn.Module):
         batch_size = input.shape[0]
         input = input.view(batch_size, -1)
         target = target.view(batch_size, -1)
+        mask = mask.view(batch_size, -1)
         input = input * mask
         target = target * mask
         return torch.mean(torch.pow(input - target, 2))
@@ -31,6 +32,9 @@ class L1LossWithMask(nn.Module):
         batch_size = input.shape[0]
         input = input.view(batch_size, -1)
         target = target.view(batch_size, -1)
+        mask = mask.view(batch_size, -1)
+        input = input * mask
+        target = target * mask
         return torch.mean(torch.abs(input - target))
 
 class BCELossWithMask(nn.Module):
@@ -41,6 +45,9 @@ class BCELossWithMask(nn.Module):
         batch_size = input.shape[0]
         input = input.view(batch_size, -1)
         target = target.view(batch_size, -1)
+        mask = mask.view(batch_size, -1)
+        input = input * mask
+        target = target * mask
         return torch.mean(torch.nn.functional.binary_cross_entropy_with_logits(input, target))
 
 if __name__ == '__main__':
