@@ -12,7 +12,7 @@ import metrics
 from data_loader_camus import DatasetCAMUS
 # from models_old import GeneratorUNet, Discriminator
 from models import GeneratorUNet, Discriminator
-from src.losses import MSELossWithMask, L1LossWithMask
+from losses import MSELossWithMask, L1LossWithMask
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
