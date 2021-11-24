@@ -160,7 +160,7 @@ class GAN:
 
         self.train_loader = torch.utils.data.DataLoader(self.train_data,
                                                         batch_size=config['BATCH_SIZE'],  # 32 max
-                                                        shuffle=False,
+                                                        shuffle=True,
                                                         num_workers=config['NUM_WORKERS'])
         self.valid_loader = torch.utils.data.DataLoader(self.valid_data,
                                                         batch_size=config['BATCH_SIZE'],
@@ -395,6 +395,41 @@ class GAN:
                 fake_mask = self.generator_I2M(image)
                 # threshold segmentation mask
                 fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
+                image = image.cpu().detach().numpy()
+                fake_echo = fake_echo.cpu().detach().numpy()
+                fake_mask = fake_mask.cpu().detach().numpy()
+                mask = mask.cpu().detach().numpy()
+                quality = quality.cpu().detach().numpy()
+
+                batch = 5
+
+                img_sample = np.concatenate([image,
+                                             fake_echo,
+                                             mask,
+                                             fake_mask,
+                                             ], axis=1)
+                q = ['low', 'med', 'high']
+                import matplotlib.pyplot as plt
+                rows, cols = 4, batch
+                titles = ['Real image', 'fake image', 'real mask', 'fake mask']
+                fig, axs = plt.subplots(rows, cols)
+                cnt = 0
+                for row in range(rows):
+                    for col in range(cols):
+                        class_label = np.argmax(quality[col], axis=1)[0]
+
+                        axs[row, col].imshow(img_sample[col, row, :, :], cmap='gray')
+                        axs[row, col].set_title(titles[row] + ' ' + q[class_label], fontdict={'fontsize': 6})
+                        axs[row, col].axis('off')
+                        cnt += 1
+
+                # fig.savefig('%s/%s/%s/%s_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num))
+                fig.savefig("images/%s_%s.png".format(epoch, i))
+
+                if self.use_wandb:
+                    import wandb
+                    wandb.log({'val_image': fig}, step=self.step)
+
                 batch_iou = metrics.iou_metric_segmentation(fake_mask, full_mask)
                 IoU_list.append(batch_iou)
                 sys.stdout.write(f"Validate Batch {i} IoU: {batch_iou:.2f}\n")
