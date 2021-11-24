@@ -274,24 +274,23 @@ class GAN:
                                                                                                 random_hide_train_mask =
                                                                                                 torch.ones_like(random_hide_train_mask))
 
-                # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
-                #                                                                                 self.discriminator_image,
-                #                                                                                 self.optimizer_GM2I,
-                #                                                                                 self.optimizer_D_image,
-                #                                                                                 inputs=mask,
-                #                                                                                 targets=image,
-                #                                                                                 weight_map=weight_map,
-                #                                                                                 random_hide_train_mask=random_hide_train_mask)
-                #
-                # fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
-                #                                                                             self.discriminator_mask,
-                #                                                                             self.optimizer_GI2M,
-                #                                                                             self.optimizer_D_mask,
-                #                                                                             inputs=fake_images.detach(),
-                #                                                                             targets=mask,
-                #                                                                             weight_map=weight_map,
-                #                                                                             random_hide_train_mask=
-                #                                                                             torch.ones_like(random_hide_train_mask))
+                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
+                                                                                                self.discriminator_image,
+                                                                                                self.optimizer_GM2I,
+                                                                                                self.optimizer_D_image,
+                                                                                                inputs=mask,
+                                                                                                targets=image,
+                                                                                                weight_map=weight_map,
+                                                                                                random_hide_train_mask=random_hide_train_mask)
+
+                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
+                                                                                            self.discriminator_mask,
+                                                                                            self.optimizer_GI2M,
+                                                                                            self.optimizer_D_mask,
+                                                                                            inputs=fake_images.detach(),
+                                                                                            targets=mask,
+                                                                                            weight_map=weight_map,
+                                                                                            random_hide_train_mask=random_hide_train_mask)
 
                 # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
@@ -402,6 +401,7 @@ class GAN:
     # paper-like + wandb
     def sample_images2(self, batches_done):
         """Saves a generated sample from the validation set"""
+
         image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view,random_hide_train_mask = next(iter(self.valid_loader))
         mask = mask.to(self.device)
         full_mask = full_mask.to(self.device)
