@@ -88,28 +88,34 @@ def ssim(img1, img2, window_size=11, size_average=True):
 
 def iou_metric_segmentation(pred, gt):
     """
-    IoU metric for segmentation task
+    IoU metric for segmentation task with num_classes
+    :arg:
+        pred: torch.Tensor, [N, C, H, W]
+        gt: torch.Tensor, [N, C, H, W]
     """
-    pred = pred.max(1)[1]
-    gt = gt.max(1)[1]
-    intersection = (pred == gt).sum()
-    union = pred.size(0) + gt.size(0) - intersection
-    return float(intersection) / float(union)
+    assert pred.size() == gt.size(), "pred and gt should have same size"
+    assert pred.dim() == 4, "pred should be 4D, got {}".format(pred.dim())
+    assert gt.dim() == 4, "gt should be 4D, got {}".format(gt.dim())
+    assert pred.size(1) == gt.size(1), "pred and gt should have same channel"
 
-
-def iou_metric_segmentation_batch(pred, gt):
-    """
-    IoU metric for segmentation task
-    """
-    batch_size = pred.size(0)
-    metric = 0
-    for i in range(batch_size):
-        metric += iou_metric_segmentation(pred[i], gt[i])
-    return metric / batch_size
+    pred = pred.reshape(pred.size(0), -1)
+    gt = gt.reshape(pred.size(0), -1)
+    intersection = (pred * gt).sum(dim=1)
+    union = pred.sum(dim=1) + gt.sum(dim=1) - intersection
+    iou = (intersection + 1e-7) / (union + 1e-7)
+    return iou.mean()
 
 
 if __name__ == '__main__':
-    pred = torch.randint(0, 10, (16, 10, 10))
-    gt = torch.randint(0, 10, (16, 10, 10))
-    print(iou_metric_segmentation(pred, gt))
-    print(iou_metric_segmentation_batch(pred, gt))
+    labels = torch.zeros(16, 1, 256, 256)
+    labels[:, :, 0:128, 0:128] = 1
+    preds = torch.zeros(16, 1, 256, 256)
+    preds[:, :, 64:192, 64:192] = 1
+    # show image and label
+    import matplotlib.pyplot as plt
+    plt.subplot(121)
+    plt.imshow(labels[0, 0, :, :])
+    plt.subplot(122)
+    plt.imshow(preds[0, 0, :, :])
+    plt.show()
+    print(iou_metric_segmentation(preds, labels))

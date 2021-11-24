@@ -393,12 +393,12 @@ class GAN:
                 fake_mask = self.generator_I2M(image)
                 # threshold segmentation mask
                 fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
-                batch_iou = metrics.iou_metric_segmentation_batch(fake_mask, full_mask)
+                batch_iou = metrics.iou_metric_segmentation(fake_mask, full_mask)
                 IoU_list.append(batch_iou)
-                sys.stdout.write(f"\rBatch {i} IoU: {batch_iou}")
+                sys.stdout.write(f"\rBatch {i} IoU: {batch_iou:.2f}")
 
-        IoU = np.mean(IoU_list)
-        sys.stdout.write(f"Epoch {epoch} IoU: {IoU}")
+        IoU = torch.mean(torch.Tensor(IoU_list)).item() * 100
+        sys.stdout.write(f"Epoch {epoch} IoU: {IoU:.2f}")
 
     # paper-like + wandb
     def sample_images2(self, batches_done):
