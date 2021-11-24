@@ -393,6 +393,7 @@ class GAN:
 
             with torch.no_grad():
                 fake_mask = self.generator_I2M(image)
+                fake_echo = self.generator_M2I(fake_mask)
                 # threshold segmentation mask
                 fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
                 image = image.cpu().detach().numpy()
