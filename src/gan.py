@@ -12,6 +12,7 @@ import metrics
 from data_loader_camus import DatasetCAMUS
 # from models_old import GeneratorUNet, Discriminator
 from models import GeneratorUNet, Discriminator
+from src.losses import MSELossWithMask, L1LossWithMask
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -106,10 +107,9 @@ class GAN:
         #                                                       self.optimizer_D,
         #                                                       opt_level=opt_level)
 
-        self.criterion_GAN = torch.nn.MSELoss().to(self.device)
+        self.criterion_GAN = MSELossWithMask().to(self.device)
 
-        self.criterion_pixelwise = torch.nn.L1Loss(reduction='none').to(self.device)  # MAE
-        # self.criterion_pixelwise = torch.nn.BCEWithLogitsLoss().to(self.device) # + weight + mean
+        self.criterion_pixelwise = L1LossWithMask().to(self.device)  # MAE
 
         self.augmentation = dict()
         for key, value in config.items():
@@ -177,7 +177,7 @@ class GAN:
         self.lr_D = config['LEARNING_RATE_D']
 
     def train_branch(self, generator, discriminator, optimizer_G, optimizer_D, inputs, targets, weight_map,
-                     batch_idx = None):
+                     random_hide_train_mask = None):
         #  Train Discriminator
 
         patch_real = torch.tensor(np.ones((targets.size(0), *self.patch)), dtype=torch.float32, device=self.device)
@@ -193,11 +193,11 @@ class GAN:
 
         # Real loss
         pred_real = discriminator(inputs, targets)
-        loss_real = self.criterion_GAN(pred_real, patch_real)
+        loss_real = self.criterion_GAN(pred_real, patch_real, random_hide_train_mask)
 
         # Fake loss
         pred_fake = discriminator(fake_targets.detach(), targets)
-        loss_fake = self.criterion_GAN(pred_fake, patch_fake)
+        loss_fake = self.criterion_GAN(pred_fake, patch_fake, random_hide_train_mask)
 
         # Total loss
         loss_D = 0.5 * (loss_real + loss_fake)
@@ -216,25 +216,17 @@ class GAN:
         # GAN loss
         fake_targets = generator(inputs)
         pred_fake = discriminator(fake_targets, targets)
-        loss_GAN = self.criterion_GAN(pred_fake, patch_fake)
+        loss_GAN = self.criterion_GAN(pred_fake, patch_fake, random_hide_train_mask)
         # loss_GAN = loss_fake
 
         # Pixel-wise loss
-        loss_pixel = self.criterion_pixelwise(fake_targets, targets) * weight_map
+        loss_pixel = self.criterion_pixelwise(fake_targets, targets, random_hide_train_mask) * weight_map
         loss_pixel = torch.mean(loss_pixel)  # * segment_mask
         # loss_pixel = torch.zeros(1, device=self.device)
 
         # Total loss
-        if batch_idx is None:
-            loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel
-        else:
-            if batch_idx < 3:
-                loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
-            else:
-                loss_G = self.loss_weight_d * loss_GAN
-
+        loss_G = self.loss_weight_d * loss_GAN + self.loss_weight_g * loss_pixel  # 1 100
         loss_G.backward()
-
         optimizer_G.step()
         return fake_targets, loss_G, loss_GAN, loss_pixel
 
@@ -251,13 +243,15 @@ class GAN:
             self.epoch = epoch
             for i, batch in enumerate(self.train_loader):
 
-                image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = batch
+                image, mask, full_mask, weight_map, segment_mask, quality,\
+                heart_state, view, random_hide_train_mask = batch
 
                 mask = mask.to(self.device)
                 image = image.to(self.device)
                 full_mask = full_mask.to(self.device)
                 weight_map = weight_map.to(self.device)
                 segment_mask = segment_mask.to(self.device)
+                random_hide_train_mask = random_hide_train_mask.to(self.device)
 
                 # Adversarial ground truths for discriminator losses
                 # train Image to mask
@@ -267,7 +261,8 @@ class GAN:
                                                                                             self.optimizer_D_mask,
                                                                                             inputs=image, targets=mask,
                                                                                             weight_map=weight_map,
-                                                                                            batch_idx=i)
+                                                                                            random_hide_train_mask=
+                                                                                            random_hide_train_mask)
                 # # train Mask to image
                 fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
                                                                                                 self.discriminator_image,
@@ -275,25 +270,28 @@ class GAN:
                                                                                                 self.optimizer_D_image,
                                                                                                 inputs=fake_masks.detach(),
                                                                                                 targets=image,
-                                                                                                weight_map=weight_map)
-
-                fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
-                                                                                                self.discriminator_image,
-                                                                                                self.optimizer_GM2I,
-                                                                                                self.optimizer_D_image,
-                                                                                                inputs=mask,
-                                                                                                targets=image,
                                                                                                 weight_map=weight_map,
-                                                                                                batch_idx=i)
+                                                                                                random_hide_train_mask =
+                                                                                                torch.ones_like(random_hide_train_mask))
 
-                fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
-                                                                                            self.discriminator_mask,
-                                                                                            self.optimizer_GI2M,
-                                                                                            self.optimizer_D_mask,
-                                                                                            inputs=fake_images.detach(),
-                                                                                            targets=mask,
-                                                                                            weight_map=weight_map,
-                                                                                            batch_idx=i)
+                # fake_images, loss_G_image, loss_GAN_image, loss_pixel_image = self.train_branch(self.generator_M2I,
+                #                                                                                 self.discriminator_image,
+                #                                                                                 self.optimizer_GM2I,
+                #                                                                                 self.optimizer_D_image,
+                #                                                                                 inputs=mask,
+                #                                                                                 targets=image,
+                #                                                                                 weight_map=weight_map,
+                #                                                                                 random_hide_train_mask=random_hide_train_mask)
+                #
+                # fake_masks, loss_G_mask, loss_GAN_mask, loss_pixel_mask = self.train_branch(self.generator_I2M,
+                #                                                                             self.discriminator_mask,
+                #                                                                             self.optimizer_GI2M,
+                #                                                                             self.optimizer_D_mask,
+                #                                                                             inputs=fake_images.detach(),
+                #                                                                             targets=mask,
+                #                                                                             weight_map=weight_map,
+                #                                                                             random_hide_train_mask=
+                #                                                                             torch.ones_like(random_hide_train_mask))
 
                 # loss_G_image, loss_GAN_image, loss_pixel_image = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                 #  Log Progress
@@ -363,7 +361,7 @@ class GAN:
 
     def sample_images(self, batches_done):
         """Saves a generated sample from the validation set"""
-        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
+        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view, random_hide_train_mask = next(iter(self.valid_loader))
         image = image.to(self.device)
         mask = mask.to(self.device)
         full_mask = full_mask.to(self.device)
@@ -382,7 +380,7 @@ class GAN:
         sys.stdout.write('\n evaluate')
         IoU_list = []
         for i, batch in enumerate(self.valid_loader):
-            image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = batch
+            image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view, random_hide_train_mask = batch
 
             mask = mask.to(self.device)
             image = image.to(self.device)

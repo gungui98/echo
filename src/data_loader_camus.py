@@ -17,6 +17,7 @@ encode_qualities = {'Good': np.array([0, 0, 1]), 'Medium': np.array([0, 1, 0]), 
 encode_heart_states = {'ES': np.array([1, 0]), 'ED': np.array([0, 1])}
 encode_views = {'2CH': np.array([1, 0]), '4CH': np.array([0, 1])}
 
+
 class DatasetCAMUS(Dataset):
 
     def __init__(self,
@@ -186,6 +187,17 @@ class DatasetCAMUS(Dataset):
                 self.train_ratio * len(self.df_images) + self.valid_ratio * len(self.df_images))]
             self.test_df_images = self.df_images[
                                   int(self.train_ratio * len(self.df_images) + self.valid_ratio * len(self.df_images)):]
+        self.random_hide_train_mask()
+
+    def random_hide_train_mask(self, probability=0.1):
+        """
+        Add a new column to self.train_df_images indicate which frame do not have mask with probability =probability
+        :return:
+        """
+        self.train_df_images['random_hide_train_mask'] = None
+        for index, row in self.train_df_images.iterrows():
+            self.train_df_images.at[index, 'random_hide_train_mask'] = True \
+                if np.random.random() < probability else False
 
     def calculate_stat(self):
         #  Вычисление статистик по набору данных
@@ -275,6 +287,10 @@ class DatasetCAMUS(Dataset):
         quality = encode_qualities[obj['quality']]
         heart_state = encode_heart_states[obj['heart_state']]
         view = encode_views[obj['view']]
+        if self.subset == 'train':
+            random_hide_train_mask = int(obj["random_hide_train_mask"])
+        else:
+            random_hide_train_mask = 1
 
         mask = full_mask.copy()
         for not_l in {0, 1, 2, 3} - set(self.classes):
@@ -292,7 +308,7 @@ class DatasetCAMUS(Dataset):
         quality = torch.tensor(quality).long().unsqueeze(dim=0)
         heart_state = torch.tensor(heart_state).long().unsqueeze(dim=0)
         view = torch.tensor(view).long().unsqueeze(dim=0)
-        return image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view
+        return image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view, random_hide_train_mask
 
 
 class DatasetCAMUS_prev(Dataset):
