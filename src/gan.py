@@ -402,7 +402,7 @@ class GAN:
     # paper-like + wandb
     def sample_images2(self, batches_done):
         """Saves a generated sample from the validation set"""
-        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = next(iter(self.valid_loader))
+        image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view,random_hide_train_mask = next(iter(self.valid_loader))
         mask = mask.to(self.device)
         full_mask = full_mask.to(self.device)
         image = image.to(self.device)

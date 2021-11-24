@@ -50,8 +50,8 @@ def main(argv):
         wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen', name=FLAGS.wandb_run_name)
 
     # Initialize GAN
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print(device)
 
 
