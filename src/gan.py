@@ -376,7 +376,7 @@ class GAN:
 
     def validate(self, epoch):
         self.generator_I2M.eval()
-        sys.stdout.write('\n evaluate')
+        sys.stdout.write('\n Evaluate... \n')
         IoU_list = []
         for i, batch in enumerate(self.valid_loader):
             image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view, random_hide_train_mask = batch
@@ -396,7 +396,7 @@ class GAN:
                 sys.stdout.write(f"Validate Batch {i} IoU: {batch_iou:.2f}\n")
 
         IoU = torch.mean(torch.Tensor(IoU_list)).item() * 100
-        sys.stdout.write(f"Epoch {epoch} validate IoU: {IoU:.2f}\n")
+        sys.stdout.write(f"Epoch {epoch} validate IoU: {IoU:.2f}\n\n")
 
     # paper-like + wandb
     def sample_images2(self, batches_done):
