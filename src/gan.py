@@ -154,6 +154,10 @@ class GAN:
                                       # augment=self.augmentation,
                                       subset='test')
 
+        print('Train dataset size: {}'.format(len(self.train_data)))
+        print('Valid dataset size: {}'.format(len(self.valid_data)))
+        print('Test dataset size: {}'.format(len(self.test_data)))
+
         self.train_loader = torch.utils.data.DataLoader(self.train_data,
                                                         batch_size=config['BATCH_SIZE'],  # 32 max
                                                         shuffle=False,
