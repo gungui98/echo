@@ -356,6 +356,7 @@ class GAN:
                 #               step=self.step)
 
             # save models
+            self.validate(epoch)
             if (epoch + 1) % save_model_interval == 0:
                 self.save(f'{self.base_dir}/generator_last_checkpoint.bin', model='generator')
                 self.save(f'{self.base_dir}/discriminator_last_checkpoint.bin', model='discriminator')
@@ -375,6 +376,30 @@ class GAN:
         # if self.use_wandb:
         #    import wandb
         #    wandb.log({'val_image': img_sample.cpu()}, step=self.step)
+
+    def validate(self, epoch):
+        self.generator_I2M.eval()
+        IoU_list = []
+        for i, batch in enumerate(self.train_loader):
+            image, mask, full_mask, weight_map, segment_mask, quality, heart_state, view = batch
+
+            mask = mask.to(self.device)
+            image = image.to(self.device)
+            full_mask = full_mask.to(self.device)
+            weight_map = weight_map.to(self.device)
+            segment_mask = segment_mask.to(self.device)
+
+            with torch.no_grad():
+                fake_mask = self.generator_I2M(image)
+                # threshold segmentation mask
+                fake_mask = torch.where(fake_mask > 0.5, torch.ones_like(fake_mask), torch.zeros_like(fake_mask))
+                batch_iou = metrics.iou_metric_segmentation_batch(fake_mask, full_mask)
+                batch_iou = batch_iou.mean()
+                IoU_list.append(batch_iou)
+                print(f"Batch {i} IoU: {batch_iou}")
+
+        IoU = np.mean(IoU_list)
+        print(f"Epoch {epoch} IoU: {IoU}")
 
     # paper-like + wandb
     def sample_images2(self, batches_done):
@@ -467,3 +492,7 @@ class GAN:
             print('discriminator loaded, epoch ', self.loaded_epoch)
 
             # self.best_summary_loss = checkpoint['best_summary_loss']
+
+
+
+
